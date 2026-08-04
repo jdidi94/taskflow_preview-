@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+build/
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs / coverage
+logs/
+*.log
+coverage/
+.nyc_output/
+
+# Uploads / runtime
+uploads/
+tmp/
+temp/
+
+# Tooling
+.turbo/
+.vite/
+.DS_Store
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json

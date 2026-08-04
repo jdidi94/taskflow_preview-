@@ -1,0 +1,38 @@
+:root {
+  color-scheme: light dark;
+  --background: 0 0% 99%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --primary: 201 100% 44%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222.2 84% 4.9%;
+  --muted: 210 40% 92%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 170 100% 45%;
+  --accent-foreground: 222.2 84% 4.9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 85%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 201 100% 44%;
+  --radius: 0.75rem;
+  --success: 142 76% 36%;
+  --warning: 38 92% 50%;
+  --error: 0 84% 60%;
+  --info: 201 100% 44%;
+  --gradient-primary: 201 100% 44%;
+  --gradient-secondary: 170 100% 45%;
+}
+
+/*
+  Tailwind 4 mapping (Phase 5+):
+  @theme {
+    --color-background: hsl(var(--background));
+    --color-foreground: hsl(var(--foreground));
+    --color-primary: hsl(var(--primary));
+    --color-accent: hsl(var(--accent));
+    --radius-lg: var(--radius);
+  }
+*/
