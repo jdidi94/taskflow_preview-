@@ -206,6 +206,12 @@ Rebuild APIs feature-by-feature (model → service → controller → route → 
   - `POST /api/chat/admin/:chatId/read`
 - Added Socket.IO `/chat` namespace parity for room join/leave, typing, read receipts, participant lookup, and status updates.
 - Widget flow supports hybrid identity: authenticated users when a JWT is present, otherwise anonymous temporary participants.
+- Added Socket.IO `/board` namespace for board join/leave, column CRUD/reorder, task create/update/move/delete, comments, bulk updates, typing, and presence.
+- Added Socket.IO `/notifications` namespace for unread counts, recent fetch, type subscribe/unsubscribe, delivery acks, and server-side `sendNotification` helpers.
+- Added Socket.IO `/workspace` namespace for join/leave (underscore + colon event names), member/role updates, settings broadcast, limits checks, and `notifyWorkspace` / `notifyWorkspaceAdmins` helpers.
+- Added Socket.IO `/system` namespace for health/metrics, config updates, maintenance mode, backup/restart jobs, monitoring subscribe, and `broadcastSystemStatus` / `setMaintenanceMode` helpers.
+- Added Socket.IO `/ai` namespace for board generation, auto-complete, smart suggestions, templates, additional tasks, improvements, content moderation, board rooms, and notify helpers (with deterministic fallbacks).
+- Added permission socket helpers across `/notifications`, `/board`, `/workspace`, and `/chat` for access-checked `join-workspace` / `join-space` / `join-board` rooms plus `emitToWorkspace` / `emitToSpace` / `emitToBoard` / `emitToUser`.
 
 ### Admin management — completed
 

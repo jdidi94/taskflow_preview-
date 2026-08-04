@@ -2,7 +2,13 @@ import type { Server as HttpServer } from 'node:http'
 import { Server, type Socket } from 'socket.io'
 import { env } from '../config/env.js'
 import { verifyAccessToken, type JwtPayload } from '../utils/jwt.js'
+import { registerAiNamespace } from './ai.socket.js'
+import { registerBoardNamespace } from './board.socket.js'
 import { registerChatNamespace } from './chat.socket.js'
+import { registerNotificationNamespace } from './notification.socket.js'
+import { registerPermissionSocket } from './permission.socket.js'
+import { registerSystemNamespace } from './system.socket.js'
+import { registerWorkspaceNamespace } from './workspace.socket.js'
 
 export type AuthedSocket = Socket & {
   data: {
@@ -57,6 +63,13 @@ export function createSocketServer(httpServer: HttpServer): Server {
   })
 
   registerChatNamespace(io)
+  registerBoardNamespace(io)
+  registerNotificationNamespace(io)
+  registerWorkspaceNamespace(io)
+  registerSystemNamespace(io)
+  registerAiNamespace(io)
+  // Cross-namespace permission-aware room joins + emit helpers (auth already handled per-namespace).
+  registerPermissionSocket(io)
 
   return io
 }
