@@ -46,6 +46,12 @@ boardRouter.delete(
   requireBoardMember,
   boardController.archiveBoard,
 )
+boardRouter.post(
+  '/:id/restore',
+  validateParams(boardIdParamSchema),
+  requireBoardMember,
+  boardController.restoreBoard,
+)
 
 boardRouter.get(
   '/:id/columns',

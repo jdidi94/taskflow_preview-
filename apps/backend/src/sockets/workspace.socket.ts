@@ -304,7 +304,7 @@ export function registerWorkspaceNamespace(io: Server) {
             return
           }
 
-          await workspaceService.updateMemberRole(access.workspace, memberId, role)
+          await workspaceService.updateMemberRole(access.workspace, memberId, role, userId)
 
           const payload = {
             workspaceId,
@@ -343,7 +343,7 @@ export function registerWorkspaceNamespace(io: Server) {
             return
           }
 
-          await workspaceService.updateMemberRole(access.workspace, memberId, role)
+          await workspaceService.updateMemberRole(access.workspace, memberId, role, userId)
           const payload = {
             workspaceId,
             memberId,

@@ -1,0 +1,7 @@
+export { WelcomeHeader } from './WelcomeHeader'
+export { DashboardStats } from './DashboardStats'
+export { WorkspacesSection } from './WorkspacesSection'
+export { CreateWorkspaceModal } from './CreateWorkspaceModal'
+export { UpcomingDeadlinesWidget } from './UpcomingDeadlinesWidget'
+export { RecentActivityWidget } from './RecentActivityWidget'
+export { ArchivedWorkspacesWidget } from './ArchivedWorkspacesWidget'

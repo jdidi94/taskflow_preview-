@@ -48,12 +48,16 @@ const notificationSchema = new Schema<INotification>(
     message: { type: String, required: true, trim: true, maxlength: 500 },
 
     relatedEntity: {
-      entityType: {
-        type: String,
-        enum: ['task', 'board', 'space', 'comment', 'user', 'workspace', 'template'],
-        required: true,
+      type: {
+        entityType: {
+          type: String,
+          enum: ['task', 'board', 'space', 'comment', 'user', 'workspace', 'template'],
+          required: true,
+        },
+        entityId: { type: Schema.Types.ObjectId, required: true },
       },
-      entityId: { type: Schema.Types.ObjectId, required: true },
+      required: false,
+      default: null,
     },
 
     priority: {

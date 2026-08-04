@@ -6,6 +6,7 @@ import { Space } from '../models/Space.js'
 import { Board } from '../models/Board.js'
 import { User } from '../models/User.js'
 import { sendEmail } from './email.service.js'
+import { notificationService } from './notification.service.js'
 import { env } from '../config/env.js'
 
 function entityTypeFromInviteType(type: 'workspace' | 'space' | 'board'): InvitationEntityType {
@@ -192,6 +193,27 @@ export const invitationService = {
       text: `Join ${target.name}: ${inviteUrl}`,
     })
 
+    if (existingUser) {
+      const inviteType = notificationService.inviteTypeFor(input.type)
+      await notificationService.notify({
+        recipientId: String(existingUser._id),
+        senderId: invitedBy,
+        type: inviteType,
+        title: `Invitation to ${target.name}`,
+        message: `You were invited as ${input.role} to join “${target.name}”.`,
+        priority: 'high',
+        entityType: notificationService.entityTypeForInvite(input.type),
+        entityId: String(target.id),
+        metadata: {
+          invitationId: String(invitation._id),
+          role: input.role,
+          inviteUrl,
+        },
+        tags: ['invitation', input.type],
+        prefCategory: 'spaceUpdates',
+      })
+    }
+
     return toPublicInvitation(invitation)
   },
 
@@ -242,6 +264,19 @@ export const invitationService = {
       throw new AppError(error instanceof Error ? error.message : 'Cannot accept invitation', 400)
     }
     const entity = await applyAcceptedInvitation(invitation, userId)
+    await notificationService.notify({
+      recipientId: String(invitation.invitedBy),
+      senderId: userId,
+      type: 'invitation_accepted',
+      title: 'Invitation accepted',
+      message: `Your invitation to “${invitation.targetEntity.name}” was accepted.`,
+      priority: 'medium',
+      entityType: notificationService.entityTypeForInvite(invitation.type),
+      entityId: String(invitation.targetEntity.id),
+      metadata: { invitationId: String(invitation._id), role: invitation.role },
+      tags: ['invitation', 'accepted'],
+      prefCategory: 'spaceUpdates',
+    })
     return { invitation: toPublicInvitation(invitation), entity }
   },
 
@@ -259,6 +294,19 @@ export const invitationService = {
     } catch (error) {
       throw new AppError(error instanceof Error ? error.message : 'Cannot decline invitation', 400)
     }
+    await notificationService.notify({
+      recipientId: String(invitation.invitedBy),
+      senderId: userId,
+      type: 'invitation_declined',
+      title: 'Invitation declined',
+      message: `Your invitation to “${invitation.targetEntity.name}” was declined.`,
+      priority: 'low',
+      entityType: notificationService.entityTypeForInvite(invitation.type),
+      entityId: String(invitation.targetEntity.id),
+      metadata: { invitationId: String(invitation._id) },
+      tags: ['invitation', 'declined'],
+      prefCategory: 'spaceUpdates',
+    })
     return toPublicInvitation(invitation)
   },
 
@@ -271,6 +319,19 @@ export const invitationService = {
       throw new AppError(error instanceof Error ? error.message : 'Cannot accept invitation', 400)
     }
     const entity = await applyAcceptedInvitation(invitation, userId)
+    await notificationService.notify({
+      recipientId: String(invitation.invitedBy),
+      senderId: userId,
+      type: 'invitation_accepted',
+      title: 'Invitation accepted',
+      message: `Your invitation to “${invitation.targetEntity.name}” was accepted.`,
+      priority: 'medium',
+      entityType: notificationService.entityTypeForInvite(invitation.type),
+      entityId: String(invitation.targetEntity.id),
+      metadata: { invitationId: String(invitation._id), role: invitation.role },
+      tags: ['invitation', 'accepted'],
+      prefCategory: 'spaceUpdates',
+    })
     return { invitation: toPublicInvitation(invitation), entity }
   },
 
@@ -288,6 +349,19 @@ export const invitationService = {
     } catch (error) {
       throw new AppError(error instanceof Error ? error.message : 'Cannot decline invitation', 400)
     }
+    await notificationService.notify({
+      recipientId: String(invitation.invitedBy),
+      senderId: userId,
+      type: 'invitation_declined',
+      title: 'Invitation declined',
+      message: `Your invitation to “${invitation.targetEntity.name}” was declined.`,
+      priority: 'low',
+      entityType: notificationService.entityTypeForInvite(invitation.type),
+      entityId: String(invitation.targetEntity.id),
+      metadata: { invitationId: String(invitation._id) },
+      tags: ['invitation', 'declined'],
+      prefCategory: 'spaceUpdates',
+    })
     return toPublicInvitation(invitation)
   },
 
@@ -360,6 +434,26 @@ export const invitationService = {
           html: `<p>You have been invited to join <strong>${target.name}</strong>.</p><p><a href="${inviteUrl}">Accept invitation</a></p>`,
           text: `Join ${target.name}: ${inviteUrl}`,
         })
+
+        if (existingUser) {
+          await notificationService.notify({
+            recipientId: String(existingUser._id),
+            senderId: invitedBy,
+            type: notificationService.inviteTypeFor(input.type),
+            title: `Invitation to ${target.name}`,
+            message: `You were invited as ${input.role} to join “${target.name}”.`,
+            priority: 'high',
+            entityType: notificationService.entityTypeForInvite(input.type),
+            entityId: String(target.id),
+            metadata: {
+              invitationId: String(invitation._id),
+              role: input.role,
+              inviteUrl,
+            },
+            tags: ['invitation', input.type],
+            prefCategory: 'spaceUpdates',
+          })
+        }
 
         results.push({ email, status: 'created', invitation: toPublicInvitation(invitation) })
       } catch (error) {

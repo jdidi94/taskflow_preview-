@@ -6,6 +6,11 @@ import { Space } from '../models/Space.js'
 import { User } from '../models/User.js'
 import { Workspace } from '../models/Workspace.js'
 import { aiRealtimeService } from '../services/aiRealtime.service.js'
+import { aiContextService, type PlaceRef } from '../services/aiContext.service.js'
+import {
+  aiAgentToolsService,
+  type ProposedAgentTool,
+} from '../services/aiAgentTools.service.js'
 import { AppError } from '../utils/AppError.js'
 import { verifyAccessToken, type JwtPayload } from '../utils/jwt.js'
 
@@ -137,7 +142,12 @@ export function registerAiNamespace(io: Server) {
       return
     }
 
+    console.log(`[socket:/ai] connected socket=${socket.id} user=${userId}`)
     socket.join(`user_${userId}`)
+
+    socket.on('disconnect', (reason) => {
+      console.log(`[socket:/ai] disconnected socket=${socket.id} user=${userId} reason=${reason}`)
+    })
 
     emitSuccess(
       socket,
@@ -148,6 +158,131 @@ export function registerAiNamespace(io: Server) {
         features: aiRealtimeService.getModelInfo().features,
       },
       'Connected to AI namespace',
+    )
+
+    socket.on(
+      'assistant_chat',
+      async (data?: {
+        message?: string
+        history?: Array<{ role?: string; content?: string }>
+        place?: { type?: string; id?: string }
+      }) => {
+        try {
+          const message = data?.message
+          if (!message || typeof message !== 'string' || !message.trim()) {
+            emitError(socket, 'assistant_error', new Error('Message is required'), 'Invalid message')
+            return
+          }
+
+          socket.emit('assistant_thinking', {
+            timestamp: new Date().toISOString(),
+          })
+
+          const history = Array.isArray(data.history)
+            ? data.history
+                .filter(
+                  (item) =>
+                    item &&
+                    (item.role === 'user' || item.role === 'assistant') &&
+                    typeof item.content === 'string' &&
+                    item.content.trim(),
+                )
+                .map((item) => ({
+                  role: item.role as 'user' | 'assistant',
+                  content: String(item.content).slice(0, 2000),
+                }))
+                .slice(-12)
+            : []
+
+          let contextPack = null
+          const placeType = data?.place?.type
+          const placeId = data?.place?.id
+          if (
+            placeType &&
+            placeId &&
+            (placeType === 'board' || placeType === 'space' || placeType === 'workspace')
+          ) {
+            const place: PlaceRef = { type: placeType, id: placeId }
+            contextPack = await aiContextService.buildPlaceContext(userId, place, Boolean(isAdminJwt))
+          }
+
+          const result = await aiRealtimeService.assistantChat(
+            message.trim().slice(0, 4000),
+            history,
+            contextPack,
+          )
+
+          if (contextPack && (result.intent === 'summarize' || result.intent === 'draft')) {
+            await aiAgentToolsService.logReadOnlyRun({
+              userId,
+              place: contextPack.place,
+              title: `${contextPack.label}: ${result.intent}`,
+              message: result.reply.slice(0, 500),
+              io: io,
+            })
+          }
+
+          emitSuccess(socket, 'assistant_reply', result, 'Assistant reply ready')
+        } catch (error) {
+          if (isOverloadError(error)) {
+            emitError(
+              socket,
+              'assistant_error',
+              new Error('AI service is temporarily overloaded. Please try again in a few minutes.'),
+              'AI Service Overloaded',
+            )
+            return
+          }
+          emitError(socket, 'assistant_error', error, 'Assistant chat failed')
+        }
+      },
+    )
+
+    socket.on(
+      'agent_confirm_tools',
+      async (data?: {
+        place?: { type?: string; id?: string }
+        tools?: ProposedAgentTool[]
+      }) => {
+        try {
+          const placeType = data?.place?.type
+          const placeId = data?.place?.id
+          if (
+            !placeType ||
+            !placeId ||
+            (placeType !== 'board' && placeType !== 'space' && placeType !== 'workspace')
+          ) {
+            emitError(socket, 'agent_tools_error', new Error('place is required'), 'Invalid place')
+            return
+          }
+          const tools = Array.isArray(data.tools) ? data.tools.slice(0, 5) : []
+          if (tools.length === 0) {
+            emitError(socket, 'agent_tools_error', new Error('No tools to confirm'), 'Invalid tools')
+            return
+          }
+
+          const place: PlaceRef = { type: placeType, id: placeId }
+          const contextPack = await aiContextService.buildPlaceContext(
+            userId,
+            place,
+            Boolean(isAdminJwt),
+          )
+          const results = await aiAgentToolsService.executeTools({
+            userId,
+            place: contextPack,
+            tools,
+            io: io,
+          })
+          emitSuccess(
+            socket,
+            'agent_tools_result',
+            { results, placeLabel: contextPack.label },
+            'Agent tools executed',
+          )
+        } catch (error) {
+          emitError(socket, 'agent_tools_error', error, 'Agent tools failed')
+        }
+      },
     )
 
     socket.on('generate_board', async (data?: { prompt?: string; options?: Record<string, unknown> }) => {

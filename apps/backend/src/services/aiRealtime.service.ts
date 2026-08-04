@@ -5,6 +5,8 @@ import { env } from '../config/env.js'
 import { Board } from '../models/Board.js'
 import { Column } from '../models/Column.js'
 import { Task } from '../models/Task.js'
+import type { PlaceContextPack } from './aiContext.service.js'
+import type { ProposedAgentTool } from './aiAgentTools.service.js'
 import { AppError } from '../utils/AppError.js'
 
 type BoardType = 'kanban' | 'list' | 'calendar' | 'timeline'
@@ -280,6 +282,7 @@ export const aiRealtimeService = {
       },
       features: [
         'board_generation',
+        'assistant_chat',
         'content_moderation',
         'auto_completion',
         'smart_suggestions',
@@ -544,6 +547,201 @@ export const aiRealtimeService = {
       }
     } catch {
       return fallback
+    }
+  },
+
+  async assistantChat(
+    message: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    contextPack?: PlaceContextPack | null,
+  ) {
+    const fallback = {
+      reply: contextPack
+        ? `I can summarize “${contextPack.title}”, draft copy, or propose task changes for you to confirm. What should we do?`
+        : 'I can help with TaskFlow: generate boards from a description, suggest workflows and templates, or explain workspaces → spaces → boards. What would you like to do?',
+      suggestions: contextPack
+        ? [
+            'Summarize this board',
+            'List overdue or at-risk tasks',
+            'Draft 3 next tasks',
+            'Suggest a comment for the top priority task',
+          ]
+        : [
+            'Create a marketing campaign board',
+            'Suggest a software delivery workflow',
+            'Explain workspaces, spaces, and boards',
+            'Show quick board templates',
+          ],
+      intent: 'none' as
+        | 'none'
+        | 'generate_board'
+        | 'templates'
+        | 'suggestions'
+        | 'summarize'
+        | 'draft'
+        | 'tools',
+      boardPrompt: null as string | null,
+      placeLabel: contextPack?.label ?? null,
+      toolCalls: [] as ProposedAgentTool[],
+    }
+
+    const trimmed = message.trim()
+    if (!trimmed) return fallback
+
+    const lower = trimmed.toLowerCase()
+    const wantsBoard =
+      !contextPack &&
+      /\b(create|generate|make|build|draft)\b/.test(lower) &&
+      /\b(board|kanban|workflow|pipeline)\b/.test(lower)
+    const wantsTemplates = /\b(template|templates)\b/.test(lower)
+    const wantsSuggestions = /\b(suggest|suggestion|ideas?|recommend)\b/.test(lower)
+    const wantsSummarize = /\b(summar(y|ize)|overview|status|what's going on)\b/.test(lower)
+
+    try {
+      const recent = history
+        .slice(-8)
+        .map((item) => `${item.role === 'user' ? 'User' : 'Assistant'}: ${item.content}`)
+        .join('\n')
+
+      const parsed = await requestAiJson<{
+        reply?: string
+        suggestions?: string[]
+        intent?: string
+        boardPrompt?: string | null
+        toolCalls?: Array<{
+          id?: string
+          name?: string
+          summary?: string
+          args?: Record<string, unknown>
+        }>
+      }>(
+        [
+          'You are TaskFlow AI, a place-aware project-management agent inside TaskFlow.',
+          'TaskFlow hierarchy: workspaces contain spaces; spaces contain boards; boards have columns and tasks.',
+          contextPack
+            ? [
+                `You are assisting in place: ${contextPack.label}.`,
+                'Use ONLY the place snapshot below. Prefer actionable, concise answers.',
+                'If the user asks to create/move/update tasks or comment, propose toolCalls (do not claim you already wrote).',
+                'Allowed tool names: create_task, move_task, update_task, add_comment.',
+                'create_task args: { title, columnId, description?, priority?, dueDate?, tags? }',
+                'move_task args: { taskId, columnId, position? }',
+                'update_task args: { taskId, title?, description?, priority?, dueDate? }',
+                'add_comment args: { taskId, body }',
+                'Use real column/task ids from the snapshot. Max 3 toolCalls.',
+                'Return strict JSON: { reply, suggestions[3-4], intent: "none"|"summarize"|"draft"|"tools"|"suggestions", boardPrompt: null, toolCalls: [{id,name,summary,args}] }.',
+                'Place snapshot:',
+                contextPack.promptBlock,
+              ].join('\n')
+            : [
+                'Help with planning, board structure, prioritization, and how to use TaskFlow. Be concise and practical.',
+                'Return strict JSON: { reply: string, suggestions: string[3-4], intent: "none"|"generate_board"|"templates"|"suggestions", boardPrompt: string|null, toolCalls: [] }.',
+                'Set intent to generate_board when the user clearly wants a new board created; put a clear generation prompt in boardPrompt.',
+              ].join('\n'),
+          recent ? `Recent conversation:\n${recent}` : '',
+          `User message: ${trimmed}`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        'You are TaskFlow AI assistant. Return strict JSON only.',
+      )
+
+      if (!parsed || typeof parsed.reply !== 'string' || !parsed.reply.trim()) {
+        return {
+          ...fallback,
+          intent: wantsSummarize
+            ? ('summarize' as const)
+            : wantsBoard
+              ? ('generate_board' as const)
+              : wantsTemplates
+                ? ('templates' as const)
+                : wantsSuggestions
+                  ? ('suggestions' as const)
+                  : ('none' as const),
+          boardPrompt: wantsBoard ? trimmed : null,
+          reply: wantsBoard
+            ? 'I can generate a board from that. I’ll draft columns and starter tasks next.'
+            : wantsSummarize && contextPack
+              ? `${contextPack.label}: ${contextPack.summary}. Ask me to go deeper on overdue work or next actions.`
+              : fallback.reply,
+        }
+      }
+
+      const allowedTools = new Set(['create_task', 'move_task', 'update_task', 'add_comment'])
+      const toolCalls: ProposedAgentTool[] = Array.isArray(parsed.toolCalls)
+        ? parsed.toolCalls
+            .filter(
+              (item) =>
+                item &&
+                typeof item.name === 'string' &&
+                allowedTools.has(item.name) &&
+                item.args &&
+                typeof item.args === 'object',
+            )
+            .slice(0, 3)
+            .map((item, index) => ({
+              id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `tool_${index + 1}`,
+              name: item.name as ProposedAgentTool['name'],
+              summary:
+                typeof item.summary === 'string' && item.summary.trim()
+                  ? item.summary.trim().slice(0, 160)
+                  : `${item.name}`,
+              args: item.args as Record<string, unknown>,
+            }))
+        : []
+
+      const intent =
+        toolCalls.length > 0
+          ? ('tools' as const)
+          : parsed.intent === 'generate_board' ||
+              parsed.intent === 'templates' ||
+              parsed.intent === 'suggestions' ||
+              parsed.intent === 'summarize' ||
+              parsed.intent === 'draft' ||
+              parsed.intent === 'tools'
+            ? parsed.intent
+            : wantsSummarize
+              ? ('summarize' as const)
+              : wantsBoard
+                ? ('generate_board' as const)
+                : wantsTemplates
+                  ? ('templates' as const)
+                  : wantsSuggestions
+                    ? ('suggestions' as const)
+                    : ('none' as const)
+
+      return {
+        reply: parsed.reply.trim(),
+        suggestions: Array.isArray(parsed.suggestions)
+          ? parsed.suggestions.map(String).filter(Boolean).slice(0, 4)
+          : fallback.suggestions,
+        intent,
+        boardPrompt:
+          typeof parsed.boardPrompt === 'string' && parsed.boardPrompt.trim()
+            ? parsed.boardPrompt.trim()
+            : intent === 'generate_board'
+              ? trimmed
+              : null,
+        placeLabel: contextPack?.label ?? null,
+        toolCalls,
+      }
+    } catch {
+      return {
+        ...fallback,
+        intent: wantsSummarize
+          ? ('summarize' as const)
+          : wantsBoard
+            ? ('generate_board' as const)
+            : wantsTemplates
+              ? ('templates' as const)
+              : wantsSuggestions
+                ? ('suggestions' as const)
+                : ('none' as const),
+        boardPrompt: wantsBoard ? trimmed : null,
+        reply: wantsBoard
+          ? 'I can generate a board from that. I’ll draft columns and starter tasks next.'
+          : fallback.reply,
+      }
     }
   },
 

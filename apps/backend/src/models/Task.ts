@@ -12,6 +12,12 @@ export interface ITaskComment {
   updatedAt: Date
 }
 
+export interface IChecklistItem {
+  _id?: Types.ObjectId
+  text: string
+  done: boolean
+}
+
 export interface ITaskDependency {
   task: Types.ObjectId
   type: 'blocks' | 'blocked_by' | 'related'
@@ -35,6 +41,7 @@ export interface ITask extends Document {
   archived: boolean
   attachments: Types.ObjectId[]
   comments: ITaskComment[]
+  checklist: IChecklistItem[]
   dependencies: ITaskDependency[]
 }
 
@@ -45,6 +52,14 @@ const taskCommentSchema = new Schema<ITaskComment>(
     attachments: [{ type: Schema.Types.ObjectId, ref: 'File' }],
   },
   { timestamps: true },
+)
+
+const checklistItemSchema = new Schema<IChecklistItem>(
+  {
+    text: { type: String, required: true, trim: true, maxlength: 200 },
+    done: { type: Boolean, default: false },
+  },
+  { _id: true },
 )
 
 const taskDependencySchema = new Schema<ITaskDependency>(
@@ -82,6 +97,7 @@ const taskSchema = new Schema<ITask>(
     archived: { type: Boolean, default: false },
     attachments: [{ type: Schema.Types.ObjectId, ref: 'File' }],
     comments: { type: [taskCommentSchema], default: [] },
+    checklist: { type: [checklistItemSchema], default: [] },
     dependencies: { type: [taskDependencySchema], default: [] },
   },
   { timestamps: true },

@@ -85,7 +85,7 @@ export const githubService = {
     }
   },
 
-  async exchangeCodeForToken(code: string) {
+  async exchangeCodeForToken(code: string, redirectUri?: string) {
     const response = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
@@ -96,6 +96,7 @@ export const githubService = {
         client_id: env.GITHUB_CLIENT_ID,
         client_secret: env.GITHUB_CLIENT_SECRET,
         code,
+        ...(redirectUri ? { redirect_uri: redirectUri } : {}),
       }),
     })
 

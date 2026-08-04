@@ -5,6 +5,8 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { AppError } from '../utils/AppError.js'
 import { Notification } from '../models/Notification.js'
 import { UserPreferences } from '../models/UserPreferences.js'
+import { notificationService } from '../services/notification.service.js'
+import { emitUnreadCount } from '../sockets/emitHelpers.js'
 
 function parseBooleanString(value: unknown): boolean | undefined {
   if (value === 'true') return true
@@ -85,7 +87,6 @@ export const createNotification = asyncHandler(async (req: any, res: Response) =
   const userId = req.user!.sub as string
   if (!userId) throw new AppError('Unauthorized', 401)
 
-  // Admin system endpoint: recipientId is provided in body.
   const { title, message, type, recipientId, priority, relatedEntity } = req.body as {
     title: string
     message: string
@@ -95,18 +96,16 @@ export const createNotification = asyncHandler(async (req: any, res: Response) =
     relatedEntity?: { entityType: string; entityId: string }
   }
 
-  const notification = await Notification.create({
-    recipient: recipientId,
-    sender: userId,
+  const notification = await notificationService.notify({
+    recipientId,
+    senderId: userId,
     title,
     message,
     type,
     priority: priority ?? 'medium',
-    relatedEntity: relatedEntity
-      ? { entityType: relatedEntity.entityType as any, entityId: new Types.ObjectId(relatedEntity.entityId) }
-      : null,
-    isRead: false,
-    metadata: {},
+    entityType: relatedEntity?.entityType as any,
+    entityId: relatedEntity?.entityId,
+    skipSelf: false,
   })
 
   res.status(201).json({ success: true, data: { notification } })
@@ -121,18 +120,17 @@ export const createPaymentNotification = asyncHandler(async (req: any, res: Resp
     metadata?: Record<string, unknown>
   }
 
-  // In v3 we don't implement system-wide payment routing; we attach to current user by default.
   const recipientId = req.user!.sub as string
 
-  const notification = await Notification.create({
-    recipient: recipientId,
-    sender: req.user!.sub,
+  const notification = await notificationService.notify({
+    recipientId,
+    senderId: recipientId,
     title,
     message,
     type: 'payment_update',
     priority: type === 'error' ? 'high' : 'medium',
-    relatedEntity: null,
     metadata: { category, paymentType: type, ...(metadata ?? {}) },
+    skipSelf: false,
   })
 
   res.status(201).json({ success: true, data: { notification } })
@@ -150,6 +148,7 @@ export const markAsRead = asyncHandler(async (req: any, res: Response) => {
   notification.isRead = true
   notification.readAt = new Date()
   await notification.save()
+  await emitUnreadCount(req, userId)
 
   res.json({ success: true, data: { notification } })
 })
@@ -161,6 +160,7 @@ export const markAllAsRead = asyncHandler(async (req: any, res: Response) => {
     { recipient: userId, isRead: false },
     { $set: { isRead: true, readAt: new Date() } },
   )
+  await emitUnreadCount(req, req.user!.sub)
 
   res.json({ success: true, data: { modifiedCount: result.modifiedCount ?? 0 } })
 })
@@ -173,6 +173,7 @@ export const bulkMarkAsRead = asyncHandler(async (req: any, res: Response) => {
     { _id: { $in: notificationIds }, recipient: userId },
     { $set: { isRead: true, readAt: new Date() } },
   )
+  await emitUnreadCount(req, req.user!.sub)
 
   res.json({ success: true, data: { modifiedCount: result.modifiedCount ?? 0 } })
 })
@@ -187,25 +188,31 @@ export const deleteNotification = asyncHandler(async (req: any, res: Response) =
   if (String(notification.recipient) !== userId) throw new AppError('Access denied', 403)
 
   await notification.deleteOne()
+  await emitUnreadCount(req, userId)
   res.json({ success: true })
 })
 
 export const clearAllNotifications = asyncHandler(async (req: any, res: Response) => {
   const userId = new Types.ObjectId(req.user!.sub)
   const result = await Notification.deleteMany({ recipient: userId })
+  await emitUnreadCount(req, req.user!.sub)
   res.json({ success: true, data: { deletedCount: result.deletedCount ?? 0 } })
 })
 
 export const clearWorkspaceNotifications = asyncHandler(async (req: any, res: Response) => {
-  // v3 doesn't yet model workspaces/archival notifications; keep endpoint functional.
   const userId = new Types.ObjectId(req.user!.sub)
-  const result = await Notification.deleteMany({ recipient: userId, type: { $in: ['workspace_archived', 'workspace_restored'] } })
+  const result = await Notification.deleteMany({
+    recipient: userId,
+    type: { $in: ['workspace_archived', 'workspace_restored'] },
+  })
+  await emitUnreadCount(req, req.user!.sub)
   res.json({ success: true, data: { deletedCount: result.deletedCount ?? 0 } })
 })
 
 export const deleteReadNotifications = asyncHandler(async (req: any, res: Response) => {
   const userId = new Types.ObjectId(req.user!.sub)
   const result = await Notification.deleteMany({ recipient: userId, isRead: true })
+  await emitUnreadCount(req, req.user!.sub)
   res.json({ success: true, data: { deletedCount: result.deletedCount ?? 0 } })
 })
 

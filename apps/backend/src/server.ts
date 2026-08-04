@@ -3,6 +3,7 @@ import { createApp } from './app.js'
 import { connectDB } from './config/db.js'
 import { env } from './config/env.js'
 import { createSocketServer } from './sockets/index.js'
+import { bindNotificationIo } from './services/notification.service.js'
 import './models/index.js'
 
 async function bootstrap() {
@@ -11,6 +12,7 @@ async function bootstrap() {
 
   const io = createSocketServer(server)
   app.set('io', io)
+  bindNotificationIo(io)
 
   try {
     await connectDB()

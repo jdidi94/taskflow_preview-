@@ -13,6 +13,18 @@ export const updateWorkspaceSchema = z
     name: z.string().min(2).max(200).optional(),
     description: z.string().max(1000).optional(),
     avatar: z.string().nullable().optional(),
+    githubOrg: z
+      .object({
+        id: z.number().nullable(),
+        login: z.string().nullable(),
+        name: z.string().nullable(),
+        url: z.string().nullable(),
+        avatar: z.string().nullable(),
+        description: z.string().nullable(),
+        linkedAt: z.string().datetime().nullable().optional(),
+      })
+      .nullable()
+      .optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No changes provided' })
 
@@ -32,3 +44,7 @@ export const workspaceMemberParamSchema = z.object({
   memberId: objectIdSchema,
 })
 export const invitationTokenParamSchema = z.object({ token: z.string().min(1) })
+
+export const updateWorkspaceRulesSchema = z.object({
+  content: z.string().max(20000),
+})

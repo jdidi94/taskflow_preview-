@@ -93,6 +93,7 @@ export function registerChatNamespace(io: Server) {
       return
     }
 
+    console.log(`[socket:/chat] connected socket=${socket.id} user=${userId}`)
     socket.join(`user:${userId}`)
     if (userType === 'admin') socket.join('admins')
 
@@ -265,7 +266,8 @@ export function registerChatNamespace(io: Server) {
       }
     })
 
-    socket.on('disconnect', async () => {
+    socket.on('disconnect', async (reason) => {
+      console.log(`[socket:/chat] disconnected socket=${socket.id} user=${userId} reason=${reason}`)
       try {
         await updatePresence(userType, userId, false)
         for (const room of socket.rooms) {

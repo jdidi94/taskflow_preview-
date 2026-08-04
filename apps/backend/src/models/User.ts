@@ -39,6 +39,17 @@ export interface IUserGithubIntegration {
   lastSync?: Date | null
 }
 
+export interface IUserGoogleDriveIntegration {
+  accessToken?: string | null
+  refreshToken?: string | null
+  expiryDate?: Date | null
+  email?: string | null
+  scope?: string | null
+  linked?: boolean
+  tokenValid?: boolean
+  lastSync?: Date | null
+}
+
 export type SubscriptionPlan = 'free' | 'basic' | 'premium' | 'enterprise'
 export type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'canceled'
 export type SubscriptionBillingCycle = 'monthly' | 'yearly'
@@ -70,6 +81,7 @@ export interface IUser extends Document {
   googleId: string | null
   githubId: string | null
   github?: IUserGithubIntegration
+  googleDrive?: IUserGoogleDriveIntegration
   oauthProviders: Array<'github' | 'google'>
   twoFactorAuth: IUserTwoFactorAuth
   tempTokens: IUserTempTokens
@@ -110,6 +122,16 @@ const userSchema = new Schema<IUser>(
       email: { type: String, default: null },
       scope: { type: String, default: null },
       tokenType: { type: String, default: null },
+      linked: { type: Boolean, default: false },
+      tokenValid: { type: Boolean, default: false },
+      lastSync: { type: Date, default: null },
+    },
+    googleDrive: {
+      accessToken: { type: String, default: null, select: false },
+      refreshToken: { type: String, default: null, select: false },
+      expiryDate: { type: Date, default: null },
+      email: { type: String, default: null },
+      scope: { type: String, default: null },
       linked: { type: Boolean, default: false },
       tokenValid: { type: Boolean, default: false },
       lastSync: { type: Date, default: null },

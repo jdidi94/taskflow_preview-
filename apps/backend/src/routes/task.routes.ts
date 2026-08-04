@@ -22,6 +22,7 @@ export const taskRouter = Router()
 taskRouter.use(authenticate)
 
 taskRouter.get('/', taskController.listTasks)
+taskRouter.get('/assigned', taskController.listAssignedUpcoming)
 taskRouter.post('/', validateBody(createTaskSchema), taskController.createTask)
 taskRouter.patch(
   '/bulk-update',

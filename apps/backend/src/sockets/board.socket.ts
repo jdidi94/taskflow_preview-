@@ -21,11 +21,44 @@ type BoardSocket = Socket & {
       email?: string
       avatar?: string | null
     }
+    joinedBoards?: Set<string>
   }
 }
 
 type BoardIo = Server & {
   emitBoardEvent?: (boardId: string, event: string, payload: unknown) => void
+}
+
+type PresenceStatus = 'online' | 'away' | 'busy' | 'offline' | 'active'
+
+function collectBoardPresence(boardNamespace: ReturnType<Server['of']>, boardId: string) {
+  const room = boardNamespace.adapter.rooms.get(`board:${boardId}`)
+  if (!room) return [] as Array<{ id: string; name: string; email?: string; avatar?: string | null; status: PresenceStatus }>
+
+  const users: Array<{
+    id: string
+    name: string
+    email?: string
+    avatar?: string | null
+    status: PresenceStatus
+  }> = []
+  const seen = new Set<string>()
+
+  for (const socketId of room) {
+    const peer = boardNamespace.sockets.get(socketId) as BoardSocket | undefined
+    const identity = peer?.data.boardIdentity
+    if (!identity || seen.has(identity.id)) continue
+    seen.add(identity.id)
+    users.push({
+      id: identity.id,
+      name: identity.name,
+      email: identity.email,
+      avatar: identity.avatar ?? null,
+      status: 'online',
+    })
+  }
+
+  return users
 }
 
 async function authenticateBoardSocket(socket: BoardSocket, next: (err?: Error) => void) {
@@ -117,26 +150,42 @@ export function registerBoardNamespace(io: Server) {
       return
     }
 
+    console.log(`[socket:/board] connected socket=${socket.id} user=${userId}`)
     socket.join(`user:${userId}`)
+    socket.data.joinedBoards = new Set()
 
     socket.on('board:join', async (data: { boardId?: string }) => {
       try {
         const boardId = data?.boardId
         if (!boardId || typeof boardId !== 'string') {
+          console.warn(`[socket:/board] join failed socket=${socket.id} reason=missing_boardId`)
           emitError(socket, 'Board ID is required and must be a string')
           return
         }
 
         const access = await userCanAccessBoard(userId, boardId)
         if (!access.ok) {
+          console.warn(
+            `[socket:/board] join denied socket=${socket.id} user=${userId} board=${boardId} reason=${access.reason}`,
+          )
           emitError(socket, access.reason, access.reason.includes('Access') ? 'FORBIDDEN' : undefined)
           return
         }
 
         socket.join(`board:${boardId}`)
+        socket.data.joinedBoards?.add(boardId)
+        console.log(`[socket:/board] joined socket=${socket.id} user=${userId} board=${boardId}`)
+
         socket.to(`board:${boardId}`).emit('board:user-joined', {
           user: identity,
           boardId,
+          status: 'online',
+          timestamp: new Date(),
+        })
+
+        socket.emit('board:presence', {
+          boardId,
+          users: collectBoardPresence(boardNamespace, boardId),
           timestamp: new Date(),
         })
 
@@ -164,6 +213,7 @@ export function registerBoardNamespace(io: Server) {
       const boardId = data?.boardId
       if (!boardId) return
       socket.leave(`board:${boardId}`)
+      socket.data.joinedBoards?.delete(boardId)
       socket.to(`board:${boardId}`).emit('board:user-left', {
         user: identity,
         boardId,
@@ -634,16 +684,27 @@ export function registerBoardNamespace(io: Server) {
     socket.on('presence:update', (data: { boardId?: string; status?: string }) => {
       const boardId = data?.boardId
       if (!boardId) return
+      const status = (data.status ?? 'online') as PresenceStatus
       socket.to(`board:${boardId}`).emit('presence:update', {
         user: identity,
         boardId,
-        status: data.status ?? 'active',
+        status,
         timestamp: new Date(),
       })
     })
 
-    socket.on('disconnect', () => {
-      // Room leave is automatic; presence listeners can react if needed.
+    socket.on('disconnect', (reason) => {
+      console.log(`[socket:/board] disconnected socket=${socket.id} user=${userId} reason=${reason}`)
+      const boards = socket.data.joinedBoards
+      if (!boards?.size) return
+      for (const boardId of boards) {
+        socket.to(`board:${boardId}`).emit('board:user-left', {
+          user: identity,
+          boardId,
+          timestamp: new Date(),
+        })
+      }
+      boards.clear()
     })
   })
 

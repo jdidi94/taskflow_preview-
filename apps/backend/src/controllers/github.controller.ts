@@ -27,12 +27,12 @@ function ensureGithubLinked(user: any) {
 }
 
 export const linkGitHubAccount = asyncHandler(async (req: AuthedRequest, res: Response) => {
-  const { code } = req.body as { code: string }
+  const { code, redirectUri } = req.body as { code: string; redirectUri?: string }
   const user = await getUserWithGithub(req.user!.sub)
 
   if (user.github?.linked) throw new AppError('GitHub account is already linked', 400)
 
-  const tokenData = await githubService.exchangeCodeForToken(code)
+  const tokenData = await githubService.exchangeCodeForToken(code, redirectUri)
   const scopeCheck = await githubService.checkTokenScopes(tokenData.accessToken)
   if (!scopeCheck.hasRequiredScopes) {
     throw new AppError('Insufficient GitHub permissions', 400, {

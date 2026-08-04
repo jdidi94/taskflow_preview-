@@ -416,7 +416,10 @@ export const authService = {
     currentDeviceId?: string,
   ): Promise<
     Array<
-      Pick<IUserSession, 'deviceId' | 'deviceInfo' | 'ipAddress' | 'loginAt' | 'lastActivityAt'> & {
+      Pick<
+        IUserSession,
+        'sessionId' | 'deviceId' | 'deviceInfo' | 'ipAddress' | 'loginAt' | 'lastActivityAt'
+      > & {
         isCurrent: boolean
       }
     >
@@ -426,6 +429,7 @@ export const authService = {
     return (sessionsDoc.sessions ?? [])
       .filter((s: IUserSession) => s.isActive)
       .map((s: IUserSession) => ({
+        sessionId: s.sessionId,
         deviceId: s.deviceId,
         deviceInfo: s.deviceInfo,
         ipAddress: s.ipAddress,

@@ -2,7 +2,6 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import mongoose, { type Document, Schema, Types } from 'mongoose'
-// env intentionally not required; URL is computed by service/routes
 
 export type FileCategory =
   | 'avatar'
@@ -11,6 +10,15 @@ export type FileCategory =
   | 'logo'
   | 'board_background'
   | 'general'
+
+export type FileSource = 'local' | 'google_drive' | 'url'
+
+export interface IFileProviderMeta {
+  thumbnailLink?: string | null
+  iconLink?: string | null
+  modifiedTime?: string | null
+  [key: string]: unknown
+}
 
 export interface IFile extends Document {
   filename: string
@@ -27,7 +35,11 @@ export interface IFile extends Document {
   category: FileCategory
   uploadedBy: Types.ObjectId
 
-  // Optional relations (used by attachment linking)
+  source: FileSource
+  externalId?: string | null
+  externalUrl?: string | null
+  providerMeta?: IFileProviderMeta | null
+
   workspace?: Types.ObjectId | null
   space?: Types.ObjectId | null
 
@@ -68,6 +80,15 @@ const fileSchema = new Schema<IFile>(
     },
     uploadedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 
+    source: {
+      type: String,
+      enum: ['local', 'google_drive', 'url'],
+      default: 'local',
+    },
+    externalId: { type: String, default: null, index: true },
+    externalUrl: { type: String, default: null },
+    providerMeta: { type: Schema.Types.Mixed, default: null },
+
     workspace: { type: Schema.Types.ObjectId, ref: 'Workspace', default: null },
     space: { type: Schema.Types.ObjectId, ref: 'Space', default: null },
 
@@ -87,11 +108,12 @@ fileSchema.methods.incrementDownloadCount = async function incrementDownloadCoun
 }
 
 fileSchema.methods.deleteFromStorage = async function deleteFromStorage() {
-  try {
-    // Delete the main file; ignore missing physical file.
-    await fs.unlink(this.path)
-  } catch {
-    // ignore
+  if (this.source === 'local' && this.path && this.path !== 'external') {
+    try {
+      await fs.unlink(this.path)
+    } catch {
+      // ignore missing physical file
+    }
   }
 
   this.isActive = false
@@ -122,12 +144,11 @@ fileSchema.statics.createFromUpload = async function createFromUpload(
     fieldname: multerFile.fieldname ?? 'file',
     category,
     uploadedBy,
+    source: 'local',
     isActive: true,
     downloadCount: 0,
     lastAccessedAt: null,
-    // workspace/space/tags intentionally left unset for now
   })
 }
 
 export const File = mongoose.models.File ?? mongoose.model<IFile>('File', fileSchema)
-

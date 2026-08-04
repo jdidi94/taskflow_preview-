@@ -5,31 +5,96 @@ import { Column } from '../models/Column.js'
 import { Board } from '../models/Board.js'
 import { Space } from '../models/Space.js'
 import { Workspace } from '../models/Workspace.js'
+import { notificationService } from './notification.service.js'
+
+type ChecklistInput = { id?: string; text: string; done: boolean }
+
+function formatDue(value: Date | string | null | undefined) {
+  if (!value) return 'none'
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return 'none'
+  return date.toISOString().slice(0, 10)
+}
+
+function toUserRef(value: unknown) {
+  if (!value) return null
+  if (typeof value === 'object' && value !== null && '_id' in value) {
+    const user = value as { _id: Types.ObjectId; name?: string; email?: string; avatar?: string | null }
+    return {
+      id: String(user._id),
+      name: user.name ?? '',
+      email: user.email ?? '',
+      avatar: user.avatar ?? null,
+    }
+  }
+  return String(value)
+}
+
+function toPublicComment(comment: any) {
+  return {
+    id: String(comment._id),
+    author: toUserRef(comment.author),
+    body: comment.body,
+    attachments: (comment.attachments ?? []).map((id: Types.ObjectId) => String(id)),
+    createdAt: comment.createdAt,
+    updatedAt: comment.updatedAt,
+  }
+}
+
+function toPublicChecklistItem(item: any) {
+  return {
+    id: String(item._id),
+    text: item.text,
+    done: Boolean(item.done),
+  }
+}
 
 function toPublicTask(task: ITask) {
   return {
     id: task._id.toString(),
     title: task.title,
     description: task.description ?? null,
-    board: task.board,
-    space: task.space,
-    column: task.column,
+    board: String(task.board),
+    space: String(task.space),
+    column: String(task.column),
     priority: task.priority,
     status: task.status,
     color: task.color,
-    assignees: task.assignees,
-    reporter: task.reporter,
-    watchers: task.watchers,
-    attachments: task.attachments,
-    tags: task.tags,
-    dueDate: task.dueDate,
+    assignees: (task.assignees ?? []).map((a) => toUserRef(a) ?? String(a)),
+    reporter: toUserRef(task.reporter) ?? String(task.reporter),
+    watchers: (task.watchers ?? []).map((id) => String(id)),
+    attachments: (task.attachments ?? []).map((id) => String(id)),
+    tags: task.tags ?? [],
+    dueDate: task.dueDate ? new Date(task.dueDate).toISOString() : null,
     position: task.position,
     archived: task.archived,
-    comments: task.comments,
+    comments: (task.comments ?? []).map(toPublicComment),
+    checklist: (task.checklist ?? []).map(toPublicChecklistItem),
     dependencies: task.dependencies,
     createdAt: (task as any).createdAt,
     updatedAt: (task as any).updatedAt,
   }
+}
+
+const TASK_POPULATE = [
+  { path: 'assignees', select: 'name email avatar' },
+  { path: 'reporter', select: 'name email avatar' },
+  { path: 'comments.author', select: 'name email avatar' },
+] as const
+
+async function hydrateTask(taskId: string) {
+  const task = await Task.findById(taskId).populate(TASK_POPULATE as any)
+  if (!task) throw new AppError('Task not found', 404)
+  return toPublicTask(task)
+}
+
+function mapChecklistInput(items: ChecklistInput[] | undefined) {
+  if (!items) return undefined
+  return items.map((item) => ({
+    ...(item.id && Types.ObjectId.isValid(item.id) ? { _id: new Types.ObjectId(item.id) } : {}),
+    text: item.text,
+    done: item.done,
+  }))
 }
 
 async function assertBoardAccess(userId: string, boardId: string) {
@@ -108,7 +173,30 @@ export const taskService = {
       throw new AppError('Provide boardId, columnId, or spaceId', 400)
     }
 
-    const tasks = await Task.find(query).sort({ position: 1, updatedAt: -1 })
+    const tasks = await Task.find(query)
+      .sort({ position: 1, updatedAt: -1 })
+      .populate(TASK_POPULATE as any)
+    return tasks.map(toPublicTask)
+  },
+
+  async listAssignedUpcoming(
+    userId: string,
+    options: { withinDays?: number; limit?: number } = {},
+  ) {
+    const withinDays = options.withinDays ?? 14
+    const limit = Math.min(Math.max(options.limit ?? 10, 1), 50)
+    const end = new Date(Date.now() + withinDays * 24 * 60 * 60 * 1000)
+
+    const tasks = await Task.find({
+      assignees: new Types.ObjectId(userId),
+      archived: false,
+      status: { $nin: ['done', 'archived'] },
+      dueDate: { $ne: null, $lte: end },
+    })
+      .sort({ dueDate: 1 })
+      .limit(limit)
+      .populate(TASK_POPULATE as any)
+
     return tasks.map(toPublicTask)
   },
 
@@ -116,7 +204,7 @@ export const taskService = {
     const task = await Task.findById(taskId)
     if (!task || task.archived) throw new AppError('Task not found', 404)
     await assertBoardAccess(userId, String(task.board))
-    return toPublicTask(task)
+    return hydrateTask(taskId)
   },
 
   async create(
@@ -133,6 +221,7 @@ export const taskService = {
       tags?: string[]
       attachments?: string[]
       dueDate?: string | null
+      checklist?: ChecklistInput[]
       position?: number
     },
   ) {
@@ -163,6 +252,7 @@ export const taskService = {
       tags: input.tags ?? [],
       attachments: input.attachments?.map((id) => new Types.ObjectId(id)) ?? [],
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
+      checklist: mapChecklistInput(input.checklist) ?? [],
       position,
       archived: false,
       comments: [],
@@ -179,7 +269,28 @@ export const taskService = {
       await task.save()
     }
 
-    return toPublicTask(task)
+    const publicTask = await hydrateTask(task._id.toString())
+    const assigneeIds = (input.assignees ?? []).map(String).filter(Boolean)
+    if (assigneeIds.length > 0) {
+      await notificationService.notifyMany(assigneeIds, {
+        senderId: userId,
+        type: 'task_assigned',
+        title: 'Task assigned to you',
+        message: `You were assigned to “${task.title}”.`,
+        priority: 'high',
+        entityType: 'task',
+        entityId: String(task._id),
+        metadata: {
+          boardId: String(board._id),
+          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+          roleHint: 'assignee',
+        },
+        tags: ['task', 'assigned'],
+        prefCategory: 'taskAssigned',
+      })
+    }
+
+    return publicTask
   },
 
   async update(
@@ -195,11 +306,17 @@ export const taskService = {
       tags?: string[]
       attachments?: string[]
       dueDate?: string | null
+      checklist?: ChecklistInput[]
     },
   ) {
     const task = await Task.findById(taskId)
     if (!task || task.archived) throw new AppError('Task not found', 404)
     await assertBoardAccess(userId, String(task.board))
+
+    const prevAssignees = new Set(task.assignees.map((id) => String(id)))
+    const prevDue = task.dueDate ? task.dueDate.toISOString() : null
+    const prevStatus = task.status
+    const title = input.title !== undefined ? input.title : task.title
 
     if (input.title !== undefined) task.title = input.title
     if (input.description !== undefined) task.description = input.description
@@ -210,9 +327,78 @@ export const taskService = {
     if (input.tags !== undefined) task.tags = input.tags
     if (input.attachments !== undefined) task.attachments = input.attachments.map((id) => new Types.ObjectId(id))
     if (input.dueDate !== undefined) task.dueDate = input.dueDate ? new Date(input.dueDate) : null
+    if (input.checklist !== undefined) task.checklist = mapChecklistInput(input.checklist) as any
 
     await task.save()
-    return toPublicTask(task)
+    const publicTask = await hydrateTask(taskId)
+
+    if (input.assignees !== undefined) {
+      const nextAssignees = input.assignees.map(String)
+      const newlyAssigned = nextAssignees.filter((id) => !prevAssignees.has(id))
+      if (newlyAssigned.length > 0) {
+        await notificationService.notifyMany(newlyAssigned, {
+          senderId: userId,
+          type: 'task_assigned',
+          title: 'Task assigned to you',
+          message: `You were assigned to “${title}”.`,
+          priority: 'high',
+          entityType: 'task',
+          entityId: taskId,
+          metadata: {
+            boardId: String(task.board),
+            dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+            roleHint: 'assignee',
+          },
+          tags: ['task', 'assigned'],
+          prefCategory: 'taskAssigned',
+        })
+      }
+    }
+
+    if (input.dueDate !== undefined) {
+      const nextDue = task.dueDate ? task.dueDate.toISOString() : null
+      if (prevDue !== nextDue) {
+        const recipients = [
+          ...task.assignees.map((id) => String(id)),
+          ...task.watchers.map((id) => String(id)),
+        ]
+        await notificationService.notifyMany(recipients, {
+          senderId: userId,
+          type: 'due_date_changed',
+          title: 'Deadline updated',
+          message: `Deadline for “${title}” changed to ${formatDue(task.dueDate)}.`,
+          priority: 'high',
+          entityType: 'task',
+          entityId: taskId,
+          metadata: {
+            boardId: String(task.board),
+            previousDueDate: prevDue,
+            dueDate: nextDue,
+            roleHint: 'assignee_or_watcher',
+          },
+          tags: ['task', 'deadline'],
+          prefCategory: 'taskAssigned',
+        })
+      }
+    }
+
+    if (input.status !== undefined && input.status !== prevStatus && input.status === 'done') {
+      const recipients = task.assignees.map((id) => String(id))
+      await notificationService.notifyMany(recipients, {
+        senderId: userId,
+        type: 'task_completed',
+        title: 'Task completed',
+        message: `“${title}” was marked done.`,
+        priority: 'medium',
+        entityType: 'task',
+        entityId: taskId,
+        metadata: { boardId: String(task.board), status: input.status, roleHint: 'assignee' },
+        tags: ['task', 'completed'],
+        prefCategory: 'taskCompleted',
+      })
+    }
+
+    return publicTask
   },
 
   async move(userId: string, taskId: string, input: { columnId: string; position: number }) {
@@ -238,6 +424,30 @@ export const taskService = {
     task.column = target._id as Types.ObjectId
     task.position = finalPosition
     await task.save()
+
+    if (fromColumnId !== toColumnId) {
+      const recipients = [
+        ...task.assignees.map((id) => String(id)),
+        ...task.watchers.map((id) => String(id)),
+      ]
+      await notificationService.notifyMany(recipients, {
+        senderId: userId,
+        type: 'task_moved',
+        title: 'Task moved',
+        message: `“${task.title}” moved to column “${target.name}”.`,
+        priority: 'low',
+        entityType: 'task',
+        entityId: taskId,
+        metadata: {
+          boardId: String(task.board),
+          fromColumnId,
+          toColumnId,
+          roleHint: 'assignee_or_watcher',
+        },
+        tags: ['task', 'moved'],
+        prefCategory: 'spaceUpdates',
+      })
+    }
 
     return toPublicTask(task)
   },
@@ -329,7 +539,7 @@ export const taskService = {
       updatedAt: new Date(),
     } as any)
     await task.save()
-    return toPublicTask(task)
+    return hydrateTask(taskId)
   },
 
   async updateComment(userId: string, taskId: string, commentId: string, body: string) {
@@ -344,7 +554,7 @@ export const taskService = {
     comment.body = body
     comment.updatedAt = new Date()
     await task.save()
-    return toPublicTask(task)
+    return hydrateTask(taskId)
   },
 
   async deleteComment(userId: string, taskId: string, commentId: string) {
@@ -358,7 +568,7 @@ export const taskService = {
 
     task.comments = task.comments.filter((item) => String(item._id) !== commentId) as any
     await task.save()
-    return toPublicTask(task)
+    return hydrateTask(taskId)
   },
 
   async addWatcher(userId: string, taskId: string, watcherId: string) {
@@ -366,9 +576,23 @@ export const taskService = {
     if (!task || task.archived) throw new AppError('Task not found', 404)
     await assertBoardAccess(userId, String(task.board))
 
-    if (!task.watchers.some((id) => String(id) === watcherId)) {
+    const already = task.watchers.some((id) => String(id) === watcherId)
+    if (!already) {
       task.watchers.push(new Types.ObjectId(watcherId))
       await task.save()
+      await notificationService.notify({
+        recipientId: watcherId,
+        senderId: userId,
+        type: 'task_watcher_added',
+        title: 'You are watching a task',
+        message: `You were added as a watcher on “${task.title}”.`,
+        priority: 'low',
+        entityType: 'task',
+        entityId: taskId,
+        metadata: { boardId: String(task.board), roleHint: 'watcher' },
+        tags: ['task', 'watcher'],
+        prefCategory: 'spaceUpdates',
+      })
     }
     return toPublicTask(task)
   },

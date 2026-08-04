@@ -25,8 +25,7 @@ export const spaceService = {
     const spaces = await Space.find({
       workspace: workspaceId,
       isActive: true,
-      archived: false,
-    }).sort({ updatedAt: -1 })
+    }).sort({ archived: 1, updatedAt: -1 })
     return spaces.map(toPublicSpace)
   },
 
@@ -103,6 +102,14 @@ export const spaceService = {
     if (space.archived) throw new AppError('Space is already archived', 400)
     space.archived = true
     space.archivedAt = new Date()
+    await space.save()
+    return toPublicSpace(space)
+  },
+
+  async restore(space: ISpace) {
+    if (!space.archived) throw new AppError('Space is not archived', 400)
+    space.archived = false
+    space.archivedAt = null
     await space.save()
     return toPublicSpace(space)
   },

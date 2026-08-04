@@ -60,8 +60,7 @@ export const boardService = {
     const boards = await Board.find({
       space: spaceId,
       isActive: true,
-      archived: false,
-    }).sort({ updatedAt: -1 })
+    }).sort({ archived: 1, updatedAt: -1 })
     return boards.map((board) => toPublicBoard(board))
   },
 
@@ -137,6 +136,14 @@ export const boardService = {
     if (board.archived) throw new AppError('Board is already archived', 400)
     board.archived = true
     board.archivedAt = new Date()
+    await board.save()
+    return toPublicBoard(board)
+  },
+
+  async restore(board: IBoard) {
+    if (!board.archived) throw new AppError('Board is not archived', 400)
+    board.archived = false
+    board.archivedAt = null
     await board.save()
     return toPublicBoard(board)
   },

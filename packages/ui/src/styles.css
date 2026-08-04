@@ -12,6 +12,13 @@
   transition: background 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
+.tf-btn:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsl(var(--ring));
+}
+
 .tf-btn:disabled {
   opacity: 0.5;
   pointer-events: none;
@@ -83,8 +90,15 @@
 }
 
 .tf-input:focus {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 1px;
+  outline: none;
+}
+
+.tf-input:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsl(var(--ring));
+  border-color: hsl(var(--ring));
 }
 
 .tf-input:disabled {

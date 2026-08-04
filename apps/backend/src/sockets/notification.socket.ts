@@ -109,8 +109,15 @@ export function registerNotificationNamespace(io: Server) {
       return
     }
 
+    console.log(`[socket:/notifications] connected socket=${socket.id} user=${userId}`)
     socket.join(`notifications:${userId}`)
     socket.join(`activities:${userId}`)
+
+    socket.on('disconnect', (reason) => {
+      console.log(
+        `[socket:/notifications] disconnected socket=${socket.id} user=${userId} reason=${reason}`,
+      )
+    })
 
     socket.on('test:ping', (data) => {
       socket.emit('test:pong', {

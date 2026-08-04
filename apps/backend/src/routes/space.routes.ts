@@ -69,6 +69,12 @@ spaceRouter.post(
   requireSpaceAdmin,
   spaceController.archiveSpace,
 )
+spaceRouter.post(
+  '/:id/restore',
+  validateParams(spaceIdParamSchema),
+  requireSpaceAdmin,
+  spaceController.restoreSpace,
+)
 spaceRouter.delete(
   '/:id/permanent',
   validateParams(spaceIdParamSchema),

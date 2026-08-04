@@ -7,6 +7,7 @@ import {
   updateWorkspaceSchema,
   inviteWorkspaceMemberSchema,
   updateMemberRoleSchema,
+  updateWorkspaceRulesSchema,
   workspaceIdParamSchema,
   workspaceMemberParamSchema,
   invitationTokenParamSchema,
@@ -76,6 +77,20 @@ workspaceRouter.put(
   requireWorkspaceAdmin,
   validateBody(updateMemberRoleSchema),
   workspaceController.updateMemberRole,
+)
+
+workspaceRouter.get(
+  '/:id/rules',
+  validateParams(workspaceIdParamSchema),
+  requireWorkspaceMember,
+  workspaceController.getRules,
+)
+workspaceRouter.put(
+  '/:id/rules',
+  validateParams(workspaceIdParamSchema),
+  requireWorkspaceAdmin,
+  validateBody(updateWorkspaceRulesSchema),
+  workspaceController.updateRules,
 )
 
 workspaceRouter.post(

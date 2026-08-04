@@ -22,6 +22,9 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().default(''),
   GOOGLE_CLIENT_SECRET: z.string().default(''),
   GOOGLE_CALLBACK_URL: z.string().default('http://localhost:3001/api/auth/google/callback'),
+  GOOGLE_DRIVE_REDIRECT_URI: z
+    .string()
+    .default('http://localhost:5173/auth/drive-link-callback'),
   GOOGLE_API_GEMINI_API_KEY: z.string().default(''),
   GOOGLE_GEMINI_MODEL: z.string().default('gemini-1.5-flash'),
   GITHUB_CLIENT_ID: z.string().default(''),

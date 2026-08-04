@@ -4,9 +4,24 @@ import { Workspace, type IWorkspace } from '../models/Workspace.js'
 import { Invitation } from '../models/Invitation.js'
 import { User } from '../models/User.js'
 import { sendEmail } from './email.service.js'
+import { notificationService } from './notification.service.js'
 import { env } from '../config/env.js'
 
 function toPublicWorkspace(workspace: IWorkspace) {
+  const githubOrg = workspace.githubOrg?.login
+    ? {
+        id: workspace.githubOrg.id,
+        login: workspace.githubOrg.login,
+        name: workspace.githubOrg.name,
+        url: workspace.githubOrg.url,
+        avatar: workspace.githubOrg.avatar,
+        description: workspace.githubOrg.description,
+        linkedAt: workspace.githubOrg.linkedAt
+          ? new Date(workspace.githubOrg.linkedAt).toISOString()
+          : null,
+      }
+    : null
+
   return {
     id: workspace._id.toString(),
     name: workspace.name,
@@ -18,6 +33,12 @@ function toPublicWorkspace(workspace: IWorkspace) {
     isActive: workspace.isActive,
     archived: workspace.archived,
     archivedAt: workspace.archivedAt,
+    githubOrg,
+    rules: {
+      content: workspace.rules?.content ?? '',
+      updatedAt: workspace.rules?.updatedAt ?? null,
+      updatedBy: workspace.rules?.updatedBy ? String(workspace.rules.updatedBy) : null,
+    },
     createdAt: (workspace as any).createdAt,
     updatedAt: (workspace as any).updatedAt,
   }
@@ -53,11 +74,39 @@ export const workspaceService = {
 
   async update(
     workspace: IWorkspace,
-    input: { name?: string; description?: string; avatar?: string | null },
+    input: {
+      name?: string
+      description?: string
+      avatar?: string | null
+      githubOrg?: {
+        id: number | null
+        login: string | null
+        name: string | null
+        url: string | null
+        avatar: string | null
+        description: string | null
+        linkedAt?: string | null
+      } | null
+    },
   ) {
     if (input.name !== undefined) workspace.name = input.name
     if (input.description !== undefined) workspace.description = input.description
     if (input.avatar !== undefined) workspace.avatar = input.avatar
+    if (input.githubOrg !== undefined) {
+      if (input.githubOrg === null) {
+        workspace.githubOrg = null
+      } else {
+        workspace.githubOrg = {
+          id: input.githubOrg.id,
+          login: input.githubOrg.login,
+          name: input.githubOrg.name,
+          url: input.githubOrg.url,
+          avatar: input.githubOrg.avatar,
+          description: input.githubOrg.description,
+          linkedAt: input.githubOrg.linkedAt ? new Date(input.githubOrg.linkedAt) : new Date(),
+        }
+      }
+    }
     await workspace.save()
     return toPublicWorkspace(workspace)
   },
@@ -106,14 +155,41 @@ export const workspaceService = {
     return toPublicWorkspace(workspace)
   },
 
-  async updateMemberRole(workspace: IWorkspace, memberId: string, role: 'member' | 'admin') {
+  async updateMemberRole(
+    workspace: IWorkspace,
+    memberId: string,
+    role: 'member' | 'admin',
+    changedBy?: string,
+  ) {
     if (String(workspace.owner) === memberId) {
       throw new AppError('Owner role cannot be changed this way', 400)
     }
     const member = workspace.members.find((item) => String(item.user) === memberId)
     if (!member) throw new AppError('Member not found', 404)
+    const previousRole = member.role
     member.role = role
     await workspace.save()
+
+    if (previousRole !== role) {
+      await notificationService.notify({
+        recipientId: memberId,
+        senderId: changedBy ?? null,
+        type: 'member_role_changed',
+        title: 'Your role was updated',
+        message: `Your role in “${workspace.name}” changed from ${previousRole} to ${role}.`,
+        priority: 'medium',
+        entityType: 'workspace',
+        entityId: String(workspace._id),
+        metadata: {
+          workspaceId: String(workspace._id),
+          previousRole,
+          role,
+        },
+        tags: ['role', 'workspace'],
+        prefCategory: 'spaceUpdates',
+      })
+    }
+
     return toPublicWorkspace(workspace)
   },
 
@@ -156,7 +232,7 @@ export const workspaceService = {
       metadata: { invitationMethod: 'email' },
     })
 
-    const inviteUrl = `${env.FRONTEND_URL}/join-workspace?token=${invitation.token}&workspace=${workspace._id}`
+    const inviteUrl = `${env.FRONTEND_URL}/invite/${invitation.token}`
     invitation.metadata.inviteUrl = inviteUrl
     await invitation.save()
 
@@ -166,6 +242,26 @@ export const workspaceService = {
       html: `<p>You have been invited to join workspace <strong>${workspace.name}</strong>.</p><p><a href="${inviteUrl}">Accept invitation</a></p>`,
       text: `Join workspace ${workspace.name}: ${inviteUrl}`,
     })
+
+    if (existingUser) {
+      await notificationService.notify({
+        recipientId: String(existingUser._id),
+        senderId: invitedBy,
+        type: 'workspace_invitation',
+        title: `Invitation to ${workspace.name}`,
+        message: `You were invited as ${input.role} to join workspace “${workspace.name}”.`,
+        priority: 'high',
+        entityType: 'workspace',
+        entityId: String(workspace._id),
+        metadata: {
+          invitationId: String(invitation._id),
+          role: input.role,
+          inviteUrl,
+        },
+        tags: ['invitation', 'workspace'],
+        prefCategory: 'spaceUpdates',
+      })
+    }
 
     return invitation
   },
@@ -183,7 +279,7 @@ export const workspaceService = {
       role: 'member',
       metadata: { invitationMethod: 'link' },
     })
-    const inviteUrl = `${env.FRONTEND_URL}/join-workspace?token=${invitation.token}&workspace=${workspace._id}`
+    const inviteUrl = `${env.FRONTEND_URL}/invite/${invitation.token}`
     invitation.metadata.inviteUrl = inviteUrl
     await invitation.save()
     return { token: invitation.token, inviteUrl, expiresAt: invitation.expiresAt }
@@ -214,6 +310,39 @@ export const workspaceService = {
       await workspace.save()
     }
 
+    await notificationService.notify({
+      recipientId: String(invitation.invitedBy),
+      senderId: userId,
+      type: 'invitation_accepted',
+      title: 'Invitation accepted',
+      message: `Your invitation to “${workspace.name}” was accepted.`,
+      priority: 'medium',
+      entityType: 'workspace',
+      entityId: String(workspace._id),
+      metadata: { invitationId: String(invitation._id), role: invitation.role },
+      tags: ['invitation', 'accepted'],
+      prefCategory: 'spaceUpdates',
+    })
+
     return toPublicWorkspace(workspace)
   },
+
+  async getRules(workspace: IWorkspace) {
+    return {
+      content: workspace.rules?.content ?? '',
+      updatedAt: workspace.rules?.updatedAt ?? null,
+      updatedBy: workspace.rules?.updatedBy ? String(workspace.rules.updatedBy) : null,
+    }
+  },
+
+  async updateRules(workspace: IWorkspace, userId: string, content: string) {
+    workspace.rules = {
+      content,
+      updatedAt: new Date(),
+      updatedBy: new Types.ObjectId(userId),
+    }
+    await workspace.save()
+    return this.getRules(workspace)
+  },
 }
+

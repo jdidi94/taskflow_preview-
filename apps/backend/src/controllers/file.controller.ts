@@ -2,10 +2,13 @@ import fs from 'node:fs'
 import type { Response } from 'express'
 import { Types } from 'mongoose'
 
+import { env } from '../config/env.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { AppError } from '../utils/AppError.js'
 import { fileService } from '../services/file.service.js'
+import { googleDriveService } from '../services/googleDrive.service.js'
 import { Task } from '../models/Task.js'
+import { User } from '../models/User.js'
 
 function asObjectId(maybe: unknown): string | null {
   if (typeof maybe !== 'string') return null
@@ -153,13 +156,20 @@ export const downloadFile = asyncHandler(async (req: any, res: Response) => {
   const file = await fileService.getFileById(fileId)
   if (!file) throw new AppError('File not found', 404)
 
+  await fileService.markDownloaded(file)
+
+  if (file.source !== 'local') {
+    const target = file.externalUrl || file.url
+    if (!target) throw new AppError('External file URL missing', 404)
+    res.redirect(target)
+    return
+  }
+
   try {
     await fs.promises.access(file.path)
   } catch {
     throw new AppError('File not found on server', 404)
   }
-
-  await fileService.markDownloaded(file)
 
   res.setHeader('Content-Type', file.mimeType)
   res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`)
@@ -175,5 +185,168 @@ export const deleteFile = asyncHandler(async (req: any, res: Response) => {
   if (deleted === undefined) throw new AppError('Not authorized to delete this file', 403)
 
   res.json({ success: true, message: 'File deleted successfully' })
+})
+
+export const getDriveStatus = asyncHandler(async (req: any, res: Response) => {
+  const configured = googleDriveService.isConfigured()
+  const user = await User.findById(req.user!.sub).select('googleDrive')
+  const linked = Boolean(user?.googleDrive?.linked)
+  res.json({
+    success: true,
+    data: {
+      configured,
+      linked,
+      tokenValid: Boolean(user?.googleDrive?.tokenValid),
+      email: user?.googleDrive?.email ?? null,
+      lastSync: user?.googleDrive?.lastSync ?? null,
+      redirectUri: env.GOOGLE_DRIVE_REDIRECT_URI,
+    },
+  })
+})
+
+export const getDriveAuthUrl = asyncHandler(async (req: any, res: Response) => {
+  const redirectUri =
+    typeof req.query.redirectUri === 'string' && req.query.redirectUri
+      ? req.query.redirectUri
+      : env.GOOGLE_DRIVE_REDIRECT_URI
+  const url = googleDriveService.buildAuthUrl(redirectUri, req.user!.sub)
+  res.json({ success: true, data: { url, redirectUri } })
+})
+
+export const linkDriveAccount = asyncHandler(async (req: any, res: Response) => {
+  const { code, redirectUri } = req.body as { code: string; redirectUri?: string }
+  const uri = redirectUri || env.GOOGLE_DRIVE_REDIRECT_URI
+  const tokens = await googleDriveService.exchangeCodeForTokens(code, uri)
+  const email = await googleDriveService.getUserEmail(tokens.accessToken)
+
+  const user = await User.findById(req.user!.sub).select('+googleDrive.accessToken +googleDrive.refreshToken')
+  if (!user) throw new AppError('User not found', 404)
+
+  user.googleDrive = {
+    accessToken: googleDriveService.encryptToken(tokens.accessToken),
+    refreshToken: tokens.refreshToken
+      ? googleDriveService.encryptToken(tokens.refreshToken)
+      : user.googleDrive?.refreshToken ?? null,
+    expiryDate: new Date(Date.now() + tokens.expiresIn * 1000),
+    email,
+    scope: tokens.scope,
+    linked: true,
+    tokenValid: true,
+    lastSync: new Date(),
+  }
+  await user.save()
+
+  res.json({
+    success: true,
+    data: {
+      linked: true,
+      email,
+      scope: tokens.scope,
+    },
+  })
+})
+
+export const unlinkDriveAccount = asyncHandler(async (req: any, res: Response) => {
+  const user = await User.findById(req.user!.sub)
+  if (!user) throw new AppError('User not found', 404)
+  user.googleDrive = {
+    accessToken: null,
+    refreshToken: null,
+    expiryDate: null,
+    email: null,
+    scope: null,
+    linked: false,
+    tokenValid: false,
+    lastSync: null,
+  }
+  await user.save()
+  res.json({ success: true, data: { linked: false } })
+})
+
+export const listDriveFiles = asyncHandler(async (req: any, res: Response) => {
+  const { pageToken, q } = (req.validatedQuery ?? {}) as { pageToken?: string; q?: string }
+  const accessToken = await googleDriveService.getValidAccessToken(req.user!.sub)
+  const data = await googleDriveService.listFiles(accessToken, { pageToken, q })
+  res.json({ success: true, data })
+})
+
+export const attachDriveFile = asyncHandler(async (req: any, res: Response) => {
+  const body = req.body as {
+    driveFileId: string
+    taskId?: string
+    category?: 'task_attachment' | 'comment_attachment' | 'general'
+  }
+  const accessToken = await googleDriveService.getValidAccessToken(req.user!.sub)
+  const meta = await googleDriveService.getFileMeta(accessToken, body.driveFileId)
+  const externalUrl =
+    meta.webViewLink || `https://drive.google.com/file/d/${encodeURIComponent(meta.id)}/view`
+
+  const file = await fileService.createExternalFile({
+    uploadedBy: req.user!.sub,
+    category: body.category ?? 'task_attachment',
+    source: 'google_drive',
+    originalName: meta.name,
+    mimeType: meta.mimeType,
+    size: meta.size,
+    externalId: meta.id,
+    externalUrl,
+    providerMeta: {
+      thumbnailLink: meta.thumbnailLink,
+      iconLink: meta.iconLink,
+      modifiedTime: meta.modifiedTime,
+    },
+  })
+
+  if (body.taskId) {
+    const task = await Task.findById(body.taskId)
+    if (!task) throw new AppError('Task not found', 404)
+    if (!task.attachments.some((id) => String(id) === String(file._id))) {
+      task.attachments.push(file._id)
+      await task.save()
+    }
+  }
+
+  res.status(201).json({ success: true, data: { file } })
+})
+
+export const linkExternalFile = asyncHandler(async (req: any, res: Response) => {
+  const body = req.body as {
+    source: 'google_drive' | 'url'
+    originalName: string
+    mimeType: string
+    size?: number
+    externalId?: string
+    externalUrl: string
+    taskId?: string
+    category?: 'task_attachment' | 'comment_attachment' | 'general'
+    thumbnailLink?: string
+    iconLink?: string
+  }
+
+  const file = await fileService.createExternalFile({
+    uploadedBy: req.user!.sub,
+    category: body.category ?? 'task_attachment',
+    source: body.source,
+    originalName: body.originalName,
+    mimeType: body.mimeType,
+    size: body.size,
+    externalId: body.externalId ?? null,
+    externalUrl: body.externalUrl,
+    providerMeta: {
+      thumbnailLink: body.thumbnailLink ?? null,
+      iconLink: body.iconLink ?? null,
+    },
+  })
+
+  if (body.taskId) {
+    const task = await Task.findById(body.taskId)
+    if (!task) throw new AppError('Task not found', 404)
+    if (!task.attachments.some((id) => String(id) === String(file._id))) {
+      task.attachments.push(file._id)
+      await task.save()
+    }
+  }
+
+  res.status(201).json({ success: true, data: { file } })
 })
 

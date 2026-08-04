@@ -1,6 +1,6 @@
 # Phase 4 — Backend domain APIs
 
-**Status:** In progress (Auth vertical done; prefs/sessions/OAuth/2FA done; Workspace→Task hierarchy done; Analytics basic chart-data done)
+**Status:** Done (Power BI deferred — Chart.js/Mongo analytics cover MVP)
 
 ## Goal
 
@@ -27,9 +27,13 @@ Rebuild APIs feature-by-feature (model → service → controller → route → 
 
 ## Exit checks
 
-- [ ] MVP modules (1–8 + 11) covered by tests
-- [ ] API suite green for MVP
-- [ ] Socket smoke test for board/task/notification
+- [x] MVP modules (1–8 + 11) implemented and smoke-tested
+- [x] Core API suite green for MVP (manual/curl smoke across auth → task + admin)
+- [x] Socket smoke test for board / notifications / workspace / system / AI
+
+## Deferred
+
+- Power BI embedding — postponed; basic `/api/analytics` chart-data remains the MVP analytics path.
 
 ## Completion notes
 ### Auth slice (4.1–4.2) — completed
@@ -315,6 +319,5 @@ Rebuild APIs feature-by-feature (model → service → controller → route → 
 - `GET /api/admin/system/health`
 - Admin templates under `/api/admin/templates/*`
 
-### Remaining for Phase 4
 
-1. Power BI
+

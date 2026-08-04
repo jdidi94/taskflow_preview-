@@ -1,6 +1,12 @@
 import { z } from 'zod'
 import { objectIdSchema } from './workspace.schemas.js'
 
+const checklistItemSchema = z.object({
+  id: objectIdSchema.optional(),
+  text: z.string().min(1).max(200),
+  done: z.boolean().default(false),
+})
+
 export const createTaskSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
@@ -13,6 +19,7 @@ export const createTaskSchema = z.object({
   attachments: z.array(objectIdSchema).optional(),
   tags: z.array(z.string().max(50)).optional(),
   dueDate: z.string().datetime().nullable().optional(),
+  checklist: z.array(checklistItemSchema).optional(),
   position: z.number().int().min(0).optional(),
 })
 
@@ -27,6 +34,7 @@ export const updateTaskSchema = z
     attachments: z.array(objectIdSchema).optional(),
     tags: z.array(z.string().max(50)).optional(),
     dueDate: z.string().datetime().nullable().optional(),
+    checklist: z.array(checklistItemSchema).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'No changes provided' })
 
@@ -62,6 +70,11 @@ export const listTasksQuerySchema = z.object({
   boardId: objectIdSchema.optional(),
   columnId: objectIdSchema.optional(),
   spaceId: objectIdSchema.optional(),
+})
+
+export const listAssignedTasksQuerySchema = z.object({
+  withinDays: z.coerce.number().int().min(1).max(90).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
 })
 
 export const taskIdParamSchema = z.object({ id: objectIdSchema })

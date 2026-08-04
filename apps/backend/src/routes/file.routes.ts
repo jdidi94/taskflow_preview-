@@ -2,9 +2,16 @@ import { Router } from 'express'
 
 import { authenticate } from '../middlewares/auth.js'
 import { makeFileUploadMiddleware } from '../middlewares/fileUpload.js'
-import { validateParams, validateQuery } from '../middlewares/validate.js'
+import { validateBody, validateParams, validateQuery } from '../middlewares/validate.js'
 import * as fileController from '../controllers/file.controller.js'
-import { fileIdParamsSchema, fileListQuerySchema } from './validator/file.schemas.js'
+import {
+  driveAttachBodySchema,
+  driveLinkBodySchema,
+  driveListQuerySchema,
+  fileIdParamsSchema,
+  fileListQuerySchema,
+  linkExternalFileBodySchema,
+} from './validator/file.schemas.js'
 
 export const fileRouter = Router()
 
@@ -29,9 +36,16 @@ fileRouter.post(
 )
 fileRouter.post('/upload/general', makeFileUploadMiddleware('general', 'array', 'files'), fileController.uploadGeneral)
 
+fileRouter.get('/drive/status', fileController.getDriveStatus)
+fileRouter.get('/drive/auth-url', fileController.getDriveAuthUrl)
+fileRouter.post('/drive/link', validateBody(driveLinkBodySchema), fileController.linkDriveAccount)
+fileRouter.delete('/drive/unlink', fileController.unlinkDriveAccount)
+fileRouter.get('/drive/files', validateQuery(driveListQuerySchema), fileController.listDriveFiles)
+fileRouter.post('/drive/attach', validateBody(driveAttachBodySchema), fileController.attachDriveFile)
+fileRouter.post('/link', validateBody(linkExternalFileBodySchema), fileController.linkExternalFile)
+
 fileRouter.get('/', validateQuery(fileListQuerySchema), fileController.listFiles)
 
-// Place :id/download before :id to avoid route collision.
 fileRouter.get('/:id/download', validateParams(fileIdParamsSchema), fileController.downloadFile)
 fileRouter.get('/:id', validateParams(fileIdParamsSchema), fileController.getFile)
 fileRouter.delete('/:id', validateParams(fileIdParamsSchema), fileController.deleteFile)
