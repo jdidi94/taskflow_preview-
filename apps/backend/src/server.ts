@@ -1,9 +1,33 @@
-import 'dotenv/config'
+import http from 'node:http'
 import { createApp } from './app.js'
+import { connectDB } from './config/db.js'
+import { env } from './config/env.js'
+import { createSocketServer } from './sockets/index.js'
+import './models/index.js'
 
-const port = Number(process.env.PORT) || 3001
-const app = createApp()
+async function bootstrap() {
+  const app = createApp()
+  const server = http.createServer(app)
 
-app.listen(port, () => {
-  console.log(`TaskFlow API listening on http://localhost:${port}`)
+  const io = createSocketServer(server)
+  app.set('io', io)
+
+  try {
+    await connectDB()
+  } catch (error) {
+    console.error('Failed to connect to MongoDB. Health will report mongo: down.')
+    if (env.isProd) {
+      process.exit(1)
+    }
+  }
+
+  server.listen(env.PORT, () => {
+    console.log(`TaskFlow API listening on http://localhost:${env.PORT}`)
+    console.log(`Socket.IO path: /socket.io`)
+  })
+}
+
+bootstrap().catch((error) => {
+  console.error('Fatal startup error:', error)
+  process.exit(1)
 })
