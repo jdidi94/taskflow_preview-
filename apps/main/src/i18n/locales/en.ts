@@ -296,7 +296,7 @@ export const en: MessageTree = {
   preview: {
     title: 'Preview build',
     body: 'This is a presentation preview of TaskFlow AI — not a production deployment. Features and data may reset at any time.',
-    contactHint: 'Explore the product freely. This snapshot is for portfolio and presentation use only.',
+    contactHint: 'Interested in the project or hiring conversations? Use the contact email above.',
     dismiss: 'Got it',
   },
   invites: {

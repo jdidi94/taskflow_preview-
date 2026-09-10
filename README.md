@@ -1,7 +1,7 @@
 # TaskFlow AI
 
 <p align="center">
-  <img src="apps/main/public/logo-full.svg" alt="TaskFlow AI" width="120" height="120" />
+  <img src="apps/main/public/logo-full.svg" alt="TaskFlow AI" width="140" height="140" />
 </p>
 
 <p align="center">
@@ -10,9 +10,14 @@
 </p>
 
 <p align="center">
-  <img src="apps/main/public/logo.svg" alt="TaskFlow mark" height="40" />
+  <img src="apps/main/public/logo.svg" alt="TaskFlow mark" height="44" />
   &nbsp;&nbsp;&nbsp;
-  <img src="apps/admin/public/logo-admin.svg" alt="TaskFlow Admin" height="40" />
+  <img src="apps/admin/public/logo-admin.svg" alt="TaskFlow Admin" height="44" />
+</p>
+
+<p align="center">
+  <em>Portfolio / presentation preview</em><br />
+  Contact: <a href="mailto:jdididdaoud1994@gmail.com">jdididdaoud1994@gmail.com</a>
 </p>
 
 ---
@@ -32,6 +37,8 @@ TaskFlow AI helps product and engineering teams plan work, collaborate in real t
 | **API** | Auth, boards & tasks, Socket.IO realtime, file uploads, AI providers |
 
 Ready-to-apply **templates** ship with the seed (sprint, marketing, hiring, support, sales, ops, and a multi-board launch space).
+
+When the API or database is unavailable, both apps show a calm maintenance screen instead of a broken UI.
 
 ---
 
@@ -78,10 +85,12 @@ npm run dev:web      # API + main + admin
 
 ## Preview note
 
-This repository is a **portfolio / presentation** snapshot — not a production deployment. Data and features may reset as the product evolves.
+This repository is a **portfolio presentation** — not a production deployment. Features and data may reset as the product evolves.
+
+Interested in the project or hiring conversations? Reach out at **[jdididdaoud1994@gmail.com](mailto:jdididdaoud1994@gmail.com)**.
 
 ---
 
 ## Status
 
-Private preview snapshot. Not an official production release.
+Presentation preview snapshot. Not an official production release.
