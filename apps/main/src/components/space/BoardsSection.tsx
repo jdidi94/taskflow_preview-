@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@taskflow/ui'
-import { Archive, Calendar, Columns3, Grid3X3, List, Plus } from 'lucide-react'
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Modal, Alert } from '@taskflow/ui'
+import { Archive, Calendar, Columns3, Grid3X3, List, Plus, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 import { ArchiveConfirmModal } from '@/components/common/ArchiveConfirmModal'
@@ -11,7 +11,11 @@ import { PaginationBar } from '@/components/common/PaginationBar'
 import { useClientPagination } from '@/hooks/useClientPagination'
 import { useI18n } from '@/i18n'
 import { getApiErrorMessage } from '@/lib/apiError'
-import { useArchiveBoardMutation, useRestoreBoardMutation } from '@/services/boardsApi'
+import {
+  useArchiveBoardMutation,
+  usePermanentDeleteBoardMutation,
+  useRestoreBoardMutation,
+} from '@/services/boardsApi'
 import type { Board } from '@/types/domain'
 
 type BoardsSectionProps = {
@@ -49,8 +53,12 @@ export function BoardsSection({
   const { t } = useI18n()
   const [archiveBoard, { isLoading: archiving }] = useArchiveBoardMutation()
   const [restoreBoard, { isLoading: restoring }] = useRestoreBoardMutation()
+  const [permanentDelete, { isLoading: deleting }] = usePermanentDeleteBoardMutation()
   const [pending, setPending] = useState<{ board: Board; mode: 'archive' | 'restore' } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Board | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const active = boards.filter((b) => !isArchived(b))
   const archived = boards.filter((b) => isArchived(b))
@@ -73,6 +81,18 @@ export function BoardsSection({
       setPending(null)
     } catch (err) {
       setActionError(getApiErrorMessage(err, t('archive.errorTitle')))
+    }
+  }
+
+  async function confirmPermanentDelete() {
+    if (!deleteTarget || deleteConfirm.trim() !== deleteTarget.name) return
+    setDeleteError(null)
+    try {
+      await permanentDelete({ id: deleteTarget.id, spaceId }).unwrap()
+      setDeleteTarget(null)
+      setDeleteConfirm('')
+    } catch (err) {
+      setDeleteError(getApiErrorMessage(err, t('board.deleteError')))
     }
   }
 
@@ -188,6 +208,11 @@ export function BoardsSection({
                     description={board.description?.trim() || t('space.boardFallbackDesc')}
                     to={`/boards/${board.id}`}
                     onRestore={() => openAction(board, 'restore')}
+                    onDelete={() => {
+                      setDeleteError(null)
+                      setDeleteConfirm('')
+                      setDeleteTarget(board)
+                    }}
                   />
                 ))}
               </div>
@@ -210,6 +235,57 @@ export function BoardsSection({
         }}
         onConfirm={confirmAction}
       />
+
+      <Modal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => {
+          if (deleting) return
+          setDeleteTarget(null)
+          setDeleteConfirm('')
+          setDeleteError(null)
+        }}
+        title={t('board.deleteTitle')}
+        description={t('board.deleteDescription', { name: deleteTarget?.name ?? '' })}
+      >
+        <div className="mt-4 flex flex-col gap-3">
+          {deleteError ? (
+            <Alert variant="error" title={t('board.deleteError')} description={deleteError} />
+          ) : null}
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">{t('board.deleteConfirmLabel')}</span>
+            <Input
+              value={deleteConfirm}
+              onChange={(event) => setDeleteConfirm(event.target.value)}
+              disabled={deleting}
+              autoComplete="off"
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleting}
+              onClick={() => {
+                setDeleteTarget(null)
+                setDeleteConfirm('')
+                setDeleteError(null)
+              }}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="gap-1.5"
+              disabled={deleting || !deleteTarget || deleteConfirm.trim() !== deleteTarget.name}
+              onClick={() => void confirmPermanentDelete()}
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              {deleting ? t('common.loading') : t('board.deletePermanent')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </>
   )
 }

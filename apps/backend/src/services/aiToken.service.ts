@@ -34,13 +34,15 @@ function defaultConfigForProvider(provider: AiProvider) {
   switch (provider) {
     case 'openai':
       return { model: 'gpt-4o-mini', maxTokens: 2000, temperature: 0.3, timeout: 30000 }
+    case 'groq':
+      return { model: 'llama-3.1-8b-instant', maxTokens: 2000, temperature: 0.3, timeout: 30000 }
     case 'anthropic':
       return { model: 'claude-3-5-sonnet-latest', maxTokens: 2000, temperature: 0.3, timeout: 30000 }
     case 'azure':
       return { model: 'gpt-4o-mini', maxTokens: 2000, temperature: 0.3, timeout: 30000 }
     case 'google':
     default:
-      return { model: 'gemini-1.5-flash', maxTokens: 2000, temperature: 0.3, timeout: 30000 }
+      return { model: 'gemini-3.1-flash-lite', maxTokens: 2000, temperature: 0.3, timeout: 30000 }
   }
 }
 

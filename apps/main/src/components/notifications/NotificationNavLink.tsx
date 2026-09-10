@@ -49,7 +49,7 @@ export function NotificationNavLink({ unread }: Props) {
     setOpen(false)
     if (!isRead) {
       try {
-        await markAsRead(id).unwrap()
+        await markAsRead({ id }).unwrap()
       } catch {
         // still navigate
       }

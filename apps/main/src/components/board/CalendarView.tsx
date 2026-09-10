@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Badge, Button } from '@taskflow/ui'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
+import { ColumnQuickAdd } from '@/components/board/ColumnQuickAdd'
 import { dueDateToInput } from '@/components/board/taskHelpers'
 import { PRIORITY_BORDER, PRIORITY_BADGE, PRIORITY_KEYS } from '@/components/board/priorityStyles'
 import { PriorityRail } from '@/components/board/PriorityRail'
@@ -11,7 +12,10 @@ import type { Task } from '@/types/domain'
 type CalendarViewProps = {
   tasks: Task[]
   onEditTask: (task: Task) => void
+  highlightedTaskId?: string | null
+  onQuickCreateOnDate?: (dateKey: string, title: string) => Promise<void>
   onCreateOnDate?: (dateKey: string) => void
+  disabled?: boolean
 }
 
 function startOfMonth(date: Date) {
@@ -75,9 +79,17 @@ function weekdayLabels(locale: Locale) {
   })
 }
 
-export function CalendarView({ tasks, onEditTask, onCreateOnDate }: CalendarViewProps) {
+export function CalendarView({
+  tasks,
+  onEditTask,
+  highlightedTaskId,
+  onQuickCreateOnDate,
+  onCreateOnDate,
+  disabled,
+}: CalendarViewProps) {
   const { t, locale } = useI18n()
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()))
+  const [addingDate, setAddingDate] = useState<string | null>(null)
 
   const monthLabel = useMemo(
     () => new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(cursor),
@@ -172,22 +184,45 @@ export function CalendarView({ tasks, onEditTask, onCreateOnDate }: CalendarView
                   >
                     {cell.day}
                   </span>
-                  {cell.inMonth && onCreateOnDate ? (
+                  {cell.inMonth && (onQuickCreateOnDate || onCreateOnDate) && !disabled ? (
                     <button
                       type="button"
                       className="rounded px-1 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={() => onCreateOnDate(cell.key)}
+                      onClick={() =>
+                        onQuickCreateOnDate ? setAddingDate(cell.key) : onCreateOnDate?.(cell.key)
+                      }
                     >
                       +
                     </button>
                   ) : null}
                 </div>
+                {addingDate === cell.key && onQuickCreateOnDate ? (
+                  <div className="mb-1">
+                    <ColumnQuickAdd
+                      compact
+                      autoOpen
+                      disabled={disabled}
+                      onSubmit={(title) => onQuickCreateOnDate(cell.key, title)}
+                      onMore={
+                        onCreateOnDate
+                          ? () => {
+                              setAddingDate(null)
+                              onCreateOnDate(cell.key)
+                            }
+                          : undefined
+                      }
+                      onClose={() => setAddingDate(null)}
+                    />
+                  </div>
+                ) : null}
                 <ul className="flex flex-col gap-0.5">
                   {visible.map((task) => (
                     <li key={task.id}>
                       <button
                         type="button"
-                        className={`w-full truncate rounded border-s-[3px] px-1 py-0.5 text-start text-[10px] font-medium hover:bg-muted sm:text-xs ${PRIORITY_BORDER[task.priority]}`}
+                        className={`w-full truncate rounded border-s-[3px] px-1 py-0.5 text-start text-[10px] font-medium hover:bg-muted sm:text-xs ${PRIORITY_BORDER[task.priority]} ${
+                          highlightedTaskId === task.id ? 'bg-primary/15 ring-1 ring-primary/50' : ''
+                        }`}
                         title={`${task.title} · ${t(PRIORITY_KEYS[task.priority])}`}
                         onClick={() => onEditTask(task)}
                       >
@@ -219,7 +254,9 @@ export function CalendarView({ tasks, onEditTask, onCreateOnDate }: CalendarView
               return (
                 <li
                   key={task.id}
-                  className="relative flex flex-wrap items-center justify-between gap-3 py-2.5 pe-3 ps-4"
+                  className={`relative flex flex-wrap items-center justify-between gap-3 py-2.5 pe-3 ps-4 ${
+                    highlightedTaskId === task.id ? 'bg-primary/10' : ''
+                  }`}
                 >
                   <PriorityRail priority={task.priority} />
                   <p className="truncate text-sm font-medium">{task.title}</p>

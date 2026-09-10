@@ -3,6 +3,7 @@ import { AppError } from '../utils/AppError.js'
 import { Board, type IBoard } from '../models/Board.js'
 import { Column, type IColumn } from '../models/Column.js'
 import { Space } from '../models/Space.js'
+import { Task } from '../models/Task.js'
 import { Workspace } from '../models/Workspace.js'
 
 const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Done'] as const
@@ -146,6 +147,15 @@ export const boardService = {
     board.archivedAt = null
     await board.save()
     return toPublicBoard(board)
+  },
+
+  async permanentDelete(board: IBoard) {
+    if (!board.archived) throw new AppError('Archive the board before permanent delete', 400)
+    const boardId = board._id
+    await Task.deleteMany({ board: boardId })
+    await Column.deleteMany({ board: boardId })
+    await Board.deleteOne({ _id: boardId })
+    return { success: true as const }
   },
 
   async listColumns(boardId: string) {

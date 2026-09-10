@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Badge, Button } from '@taskflow/ui'
 import { Pencil } from 'lucide-react'
 
@@ -10,16 +11,28 @@ import type { Task } from '@/types/domain'
 type BoardDenseTaskRowProps = {
   task: Task
   onEdit: (task: Task) => void
+  highlighted?: boolean
   /** Optional leading meta (e.g. due date string for undated sections). */
   leading?: string
 }
 
-export function BoardDenseTaskRow({ task, onEdit, leading }: BoardDenseTaskRowProps) {
+export function BoardDenseTaskRow({ task, onEdit, highlighted, leading }: BoardDenseTaskRowProps) {
   const { t } = useI18n()
+  const rowRef = useRef<HTMLLIElement>(null)
   const priorityLabel = t(PRIORITY_KEYS[task.priority])
 
+  useEffect(() => {
+    if (!highlighted) return
+    rowRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+  }, [highlighted])
+
   return (
-    <li className="group relative flex items-center gap-2 py-1.5 pe-2 ps-3.5 hover:bg-muted/40">
+    <li
+      ref={rowRef}
+      className={`group relative flex items-center gap-2 py-1.5 pe-2 ps-3.5 hover:bg-muted/40 ${
+        highlighted ? 'bg-primary/10 ring-1 ring-inset ring-primary/40' : ''
+      }`}
+    >
       <PriorityRail priority={task.priority} className="w-1" />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-baseline gap-2">

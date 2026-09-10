@@ -1,12 +1,25 @@
 import cors from 'cors'
+import compression from 'compression'
 import express from 'express'
 import helmet from 'helmet'
-import morgan from 'morgan'
 import passport from 'passport'
+import { pinoHttp } from 'pino-http'
+
+import { UPLOAD_ROOT } from './config/fileUpload.js'
 import { env } from './config/env.js'
+import { logger } from './config/logger.js'
 import { setupPassport } from './config/passport.js'
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js'
+import {
+  aiLimiter,
+  authLimiter,
+  checkoutLimiter,
+  contactLimiter,
+  filesLimiter,
+  globalApiLimiter,
+} from './middlewares/rateLimit.js'
 import { healthRouter } from './routes/health.routes.js'
+import { contactRouter } from './routes/contact.routes.js'
 import { meRouter } from './routes/me.routes.js'
 import { authRouter } from './routes/auth.routes.js'
 import { adminRouter } from './routes/admin.routes.js'
@@ -35,7 +48,14 @@ export function createApp() {
   const app = express()
   setupPassport()
 
-  app.use(helmet())
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  )
+  app.use(compression())
   app.use(
     cors({
       origin: env.isDev ? true : env.corsOrigins,
@@ -43,30 +63,45 @@ export function createApp() {
     }),
   )
   app.use(express.json({ limit: '2mb' }))
-  app.use(morgan(env.isDev ? 'dev' : 'combined'))
+  app.use(
+    pinoHttp({
+      logger,
+      autoLogging: !env.isTest,
+      quietReqLogger: true,
+      customLogLevel(_req, res, err) {
+        if (err || res.statusCode >= 500) return 'error'
+        if (res.statusCode >= 400) return 'warn'
+        return 'info'
+      },
+    }),
+  )
   app.use(passport.initialize())
+  app.use('/uploads', express.static(UPLOAD_ROOT))
+
+  app.use('/api', globalApiLimiter)
 
   app.use('/api/health', healthRouter)
+  app.use('/api/contact', contactLimiter, contactRouter)
   app.use('/api/me', meRouter)
-  app.use('/api/auth', authRouter)
+  app.use('/api/auth', authLimiter, authRouter)
   app.use('/api/admin/quotas', quotaRouter)
   app.use('/api/admin/ai-tokens', aiTokenRouter)
   app.use('/api/admin', adminRouter)
   app.use('/api/admin-management', adminManagementRouter)
-  app.use('/api/2fa', twoFactorAuthRouter)
+  app.use('/api/2fa', authLimiter, twoFactorAuthRouter)
   app.use('/api/workspaces', workspaceRouter)
   app.use('/api/invitations', invitationRouter)
   app.use('/api/spaces', spaceRouter)
   app.use('/api/boards', boardRouter)
   app.use('/api/tasks', taskRouter)
   app.use('/api/analytics', analyticsRouter)
-  app.use('/api/ai', aiRouter)
+  app.use('/api/ai', aiLimiter, aiRouter)
   app.use('/api/github', githubRouter)
   app.use('/api/integrations', integrationRouter)
-  app.use('/api/checkout', checkoutRouter)
+  app.use('/api/checkout', checkoutLimiter, checkoutRouter)
   app.use('/api/users', userRouter)
   app.use('/api/chat', chatRouter)
-  app.use('/api/files', fileRouter)
+  app.use('/api/files', filesLimiter, fileRouter)
   app.use('/api/notifications', notificationRouter)
   app.use('/api/reminders', reminderRouter)
   app.use('/api/templates', templateRouter)

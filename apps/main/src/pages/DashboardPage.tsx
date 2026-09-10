@@ -12,6 +12,7 @@ import {
 import {
   ArchivedWorkspacesWidget,
   CreateWorkspaceModal,
+  DashboardFirstRun,
   DashboardStats,
   RecentActivityWidget,
   UpcomingDeadlinesWidget,
@@ -65,6 +66,10 @@ export function DashboardPage() {
 
   if (isLoading && workspaces.length === 0) {
     return <Loading label={t('common.loading')} />
+  }
+
+  if (!isLoading && activeCount === 0) {
+    return <DashboardFirstRun pendingInviteCount={pendingInviteCount} />
   }
 
   return (

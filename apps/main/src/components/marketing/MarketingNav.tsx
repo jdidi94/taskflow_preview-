@@ -2,6 +2,7 @@ import { Link, NavLink } from 'react-router'
 import { ThemeToggle } from '@taskflow/theme'
 import { Button } from '@taskflow/ui'
 
+import { BrandLogo } from '@/components/common/BrandLogo'
 import { LanguageSwitcher } from '@/components/common/LanguageSwitcher'
 import { useI18n } from '@/i18n'
 
@@ -24,8 +25,8 @@ export function MarketingNav({ compact = false }: Props) {
       className={`flex flex-wrap items-center justify-between gap-3 ${compact ? '' : 'mb-10'}`}
     >
       <div className="flex flex-wrap items-center gap-6">
-        <Link to="/" className="font-display text-2xl font-semibold tracking-tight text-primary sm:text-3xl">
-          {t('common.brand')}
+        <Link to="/" className="inline-flex" aria-label={t('common.brand')}>
+          <BrandLogo variant="wordmark" className="h-16 w-16 sm:h-20 sm:w-20" />
         </Link>
         <nav className="hidden items-center gap-4 text-sm md:flex">
           {links.map((link) => (

@@ -1,8 +1,10 @@
+import { useNavigate } from 'react-router'
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Loading } from '@taskflow/ui'
 
 import { PaginationBar } from '@/components/common/PaginationBar'
 import { useClientPagination } from '@/hooks/useClientPagination'
 import { useI18n } from '@/i18n'
+import { destinationAfterInviteAccept } from '@/lib/inviteDestination'
 import {
   useAcceptByIdMutation,
   useDeclineByIdMutation,
@@ -11,6 +13,7 @@ import {
 
 export function PendingInvitesList() {
   const { t } = useI18n()
+  const navigate = useNavigate()
   const { data, isLoading, isError, refetch } = useListPendingQuery()
   const [acceptById, { isLoading: accepting }] = useAcceptByIdMutation()
   const [declineById, { isLoading: declining }] = useDeclineByIdMutation()
@@ -45,7 +48,14 @@ export function PendingInvitesList() {
                     size="sm"
                     variant="primary"
                     disabled={accepting}
-                    onClick={() => void acceptById({ invitationId: invite.id }).then(() => refetch())}
+                    onClick={() =>
+                      void acceptById({ invitationId: invite.id })
+                        .unwrap()
+                        .then((result) => {
+                          navigate(destinationAfterInviteAccept(result))
+                        })
+                        .catch(() => refetch())
+                    }
                   >
                     {t('invites.accept')}
                   </Button>

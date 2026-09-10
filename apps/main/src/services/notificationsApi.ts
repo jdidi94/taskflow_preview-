@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 import {
   normalizeNotification,
   type AppNotification,
@@ -19,6 +19,7 @@ type ListArgs = {
 export const notificationsApi = createApi({
   reducerPath: 'notificationsApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Notifications', 'NotificationStats'],
   endpoints: (builder) => ({
     listNotifications: builder.query<ApiSuccess<NotificationListData>, ListArgs | void>({

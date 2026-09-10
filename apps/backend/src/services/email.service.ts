@@ -6,6 +6,7 @@ export interface SendEmailInput {
   subject: string
   html: string
   text?: string
+  replyTo?: string
 }
 
 let cachedTransporter: nodemailer.Transporter | null = null
@@ -35,6 +36,7 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
   await transporter.sendMail({
     from,
     to: input.to,
+    replyTo: input.replyTo,
     subject: input.subject,
     html: input.html,
     text: input.text,

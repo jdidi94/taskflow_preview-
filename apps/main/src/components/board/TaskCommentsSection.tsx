@@ -12,6 +12,7 @@ import { useAppSelector } from '@/store/hooks'
 import {
   useAddCommentMutation,
   useDeleteCommentMutation,
+  useGetTaskQuery,
   useUpdateCommentMutation,
 } from '@/services/tasksApi'
 import type { Task, TaskComment } from '@/types/domain'
@@ -46,11 +47,15 @@ export function TaskCommentsSection({ task, boardId, members }: TaskCommentsSect
   const [editBody, setEditBody] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  /** Board list omits comment threads — load full task when the drawer is open. */
+  const { data: fullTask } = useGetTaskQuery(task.id, { skip: !task.id })
+  const hydrated = fullTask?.data ?? task
+
   const [addComment, { isLoading: adding }] = useAddCommentMutation()
   const [updateComment, { isLoading: updating }] = useUpdateCommentMutation()
   const [deleteComment, { isLoading: removing }] = useDeleteCommentMutation()
 
-  const comments = [...(task.comments ?? [])].sort((a, b) => {
+  const comments = [...(hydrated.comments ?? [])].sort((a, b) => {
     const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
     const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
     return ta - tb

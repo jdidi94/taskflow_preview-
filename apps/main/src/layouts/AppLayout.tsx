@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react'
 
 import { ChatFab } from '@/components/chat/ChatFab'
 import { AppSidebar } from '@/components/common/AppSidebar'
+import { BrandLogo } from '@/components/common/BrandLogo'
+import { ConnectionBanner } from '@/components/common/ConnectionBanner'
 import { CommandPalette } from '@/components/common/CommandPalette'
 import { LanguageSwitcher } from '@/components/common/LanguageSwitcher'
 import { AnimatedOutlet } from '@/components/common/PageTransition'
@@ -58,24 +60,27 @@ export function AppLayout() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/40 bg-background/75 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="lg:hidden"
-              onClick={() => setMobileNavOpen((open) => !open)}
-              aria-label={t('nav.menu')}
-              aria-expanded={mobileNavOpen}
-            >
-              <Menu className="h-4 w-4" />
-            </Button>
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            {/* Wrapper required: .tf-btn { display:inline-flex } beats Tailwind lg:hidden */}
+            <div className="lg:hidden">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setMobileNavOpen((open) => !open)}
+                aria-label={t('nav.menu')}
+                aria-expanded={mobileNavOpen}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </div>
             <Link
               to="/dashboard"
-              className="rounded-sm font-display text-xl font-semibold tracking-tight text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              aria-label={t('common.brand')}
             >
-              {t('common.brand')}
+              <BrandLogo variant="wordmark" />
             </Link>
           </div>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
@@ -115,6 +120,7 @@ export function AppLayout() {
           </div>
         </div>
       </header>
+      <ConnectionBanner />
 
       <AnimatePresence initial={false}>
         {mobileNavOpen ? (

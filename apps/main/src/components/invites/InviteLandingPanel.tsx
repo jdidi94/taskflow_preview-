@@ -8,6 +8,7 @@ import {
   useDeclineByTokenMutation,
   useGetByTokenQuery,
 } from '@/services/invitationsApi'
+import { destinationAfterInviteAccept } from '@/lib/inviteDestination'
 import { useAppSelector } from '@/store/hooks'
 
 export function InviteLandingPanel() {
@@ -28,8 +29,11 @@ export function InviteLandingPanel() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">{t('invites.needLogin')}</p>
-            <Link to={`/login`}>
+            <Link to={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}>
               <Button variant="primary">{t('auth.signIn')}</Button>
+            </Link>
+            <Link to={`/register?next=${encodeURIComponent(`/invite/${token}`)}`}>
+              <Button variant="outline">{t('auth.createAccount')}</Button>
             </Link>
           </CardContent>
         </Card>
@@ -78,7 +82,7 @@ export function InviteLandingPanel() {
               onClick={() =>
                 void acceptByToken({ token })
                   .unwrap()
-                  .then(() => navigate('/dashboard', { replace: true }))
+                  .then((result) => navigate(destinationAfterInviteAccept(result), { replace: true }))
               }
             >
               {t('invites.acceptInvite')}

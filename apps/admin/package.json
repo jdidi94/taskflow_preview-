@@ -8,14 +8,22 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "type-check": "tsc -b --noEmit"
+    "type-check": "tsc -b --noEmit",
+    "test": "echo \"No admin tests yet\""
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.12.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@taskflow/theme": "*",
     "@taskflow/ui": "*",
     "@taskflow/utils": "*",
+    "lucide-react": "^0.511.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-redux": "^9.3.0",
+    "react-router": "^7.18.2",
+    "socket.io-client": "^4.8.3",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

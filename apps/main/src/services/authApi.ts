@@ -1,7 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
 import { getOrCreateDeviceId } from '@/lib/authToken'
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 import type { AuthRequires2FA, AuthSuccess, PublicUser } from '@/types/auth'
 
 type MeResponse = {
@@ -59,6 +59,7 @@ type SessionsResponse = {
 export const authApi = createApi({
   reducerPath: 'authApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Me', 'TwoFactor', 'Sessions'],
   endpoints: (builder) => ({
     register: builder.mutation<

@@ -1,4 +1,5 @@
 export { WelcomeHeader } from './WelcomeHeader'
+export { DashboardFirstRun } from './DashboardFirstRun'
 export { DashboardStats } from './DashboardStats'
 export { WorkspacesSection } from './WorkspacesSection'
 export { CreateWorkspaceModal } from './CreateWorkspaceModal'

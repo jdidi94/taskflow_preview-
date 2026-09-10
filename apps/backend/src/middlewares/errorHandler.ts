@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import { ZodError } from 'zod'
 import { env } from '../config/env.js'
+import { logger } from '../config/logger.js'
 import { AppError } from '../utils/AppError.js'
 
 export function notFoundHandler(req: Request, _res: Response, next: NextFunction): void {
@@ -31,7 +32,7 @@ export function errorHandler(
     return
   }
 
-  console.error('Unhandled error:', err)
+  logger.error({ err }, 'Unhandled error')
 
   res.status(500).json({
     success: false,

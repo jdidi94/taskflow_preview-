@@ -10,7 +10,7 @@ export type IntegrationCategory =
 export type IntegrationType = 'generic' | 'ai_token'
 export type IntegrationStatus = 'active' | 'inactive' | 'error' | 'pending'
 export type IntegrationSyncStatus = 'success' | 'warning' | 'error'
-export type AiProvider = 'google' | 'openai' | 'anthropic' | 'azure'
+export type AiProvider = 'google' | 'openai' | 'anthropic' | 'azure' | 'groq'
 
 export interface IIntegration extends Document {
   integrationType: IntegrationType
@@ -66,7 +66,7 @@ const integrationSchema = new Schema<IIntegration>(
     },
     provider: {
       type: String,
-      enum: ['google', 'openai', 'anthropic', 'azure'],
+      enum: ['google', 'openai', 'anthropic', 'azure', 'groq'],
       default: null,
     },
     apiKey: { type: String, default: null, select: false },

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@taskflow/ui'
-import { MoreHorizontal, RotateCcw } from 'lucide-react'
+import { MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 import { useI18n } from '@/i18n'
@@ -96,6 +96,7 @@ type ArchivedEntityRowProps = {
   description?: string
   to: string
   onRestore: () => void
+  onDelete?: () => void
   meta?: ReactNode
 }
 
@@ -106,6 +107,7 @@ export function ArchivedEntityRow({
   description,
   to,
   onRestore,
+  onDelete,
   meta,
 }: ArchivedEntityRowProps) {
   const { t, isRTL } = useI18n()
@@ -186,6 +188,16 @@ export function ArchivedEntityRow({
               icon: RotateCcw,
               onSelect: onRestore,
             },
+            ...(onDelete
+              ? [
+                  {
+                    id: 'delete',
+                    label: t('archive.deletePermanent'),
+                    icon: Trash2,
+                    onSelect: onDelete,
+                  },
+                ]
+              : []),
           ]}
         />
       </div>

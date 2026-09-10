@@ -9,7 +9,7 @@ export async function generateGoogleAiText(
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const model = request.model || 'gemini-1.5-flash'
+    const model = request.model || 'gemini-3.1-flash-lite'
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
     const response = await fetch(url, {
       method: 'POST',

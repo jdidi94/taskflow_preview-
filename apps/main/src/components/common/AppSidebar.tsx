@@ -8,6 +8,7 @@ import {
   FileText,
   Home,
   LayoutGrid,
+  ListTodo,
   MessageCircle,
   Settings,
   Sparkles,
@@ -16,6 +17,8 @@ import {
 import { useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
+import { RecentBoardsNav } from '@/components/common/RecentBoardsNav'
+import { useRecentBoards } from '@/hooks/useRecentBoards'
 import { useI18n } from '@/i18n'
 import type { MessageKey } from '@/i18n'
 import { focusRingClassName } from '@/lib/focusRing'
@@ -43,8 +46,12 @@ function readCollapsedPreference(): boolean {
 export function AppSidebar({ mobile = false, onNavigate }: AppSidebarProps) {
   const { t, isRTL } = useI18n()
   const reduceMotion = useReducedMotion()
-  const { workspaceId, spaceId } = useParams()
+  const { workspaceId, spaceId, boardId } = useParams()
+  const recents = useRecentBoards()
   const [collapsed, setCollapsed] = useState(readCollapsedPreference)
+  const recentMatch = boardId ? recents.find((board) => board.id === boardId) : undefined
+  const ctxWorkspaceId = workspaceId || recentMatch?.workspaceId
+  const ctxSpaceId = spaceId || recentMatch?.spaceId
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -56,6 +63,7 @@ export function AppSidebar({ mobile = false, onNavigate }: AppSidebarProps) {
 
   const items: NavItem[] = [
     { to: '/dashboard', labelKey: 'nav.home', icon: Home, end: true },
+    { to: '/my-tasks', labelKey: 'nav.myTasks', icon: ListTodo },
     { to: '/templates', labelKey: 'nav.templates', icon: FileText },
     { to: '/analytics', labelKey: 'nav.analytics', icon: BarChart3 },
     { to: '/ai', labelKey: 'nav.ai', icon: Sparkles },
@@ -63,18 +71,26 @@ export function AppSidebar({ mobile = false, onNavigate }: AppSidebarProps) {
     { to: '/settings', labelKey: 'nav.settings', icon: Settings },
   ]
 
-  if (workspaceId) {
+  if (ctxWorkspaceId) {
     items.splice(1, 0, {
-      to: `/workspaces/${workspaceId}`,
+      to: `/workspaces/${ctxWorkspaceId}`,
       labelKey: 'nav.workspace',
       icon: Users,
       end: true,
     })
   }
-  if (spaceId) {
-    items.splice(workspaceId ? 2 : 1, 0, {
-      to: `/spaces/${spaceId}`,
+  if (ctxSpaceId) {
+    items.splice(ctxWorkspaceId ? 2 : 1, 0, {
+      to: `/spaces/${ctxSpaceId}`,
       labelKey: 'nav.space',
+      icon: LayoutGrid,
+      end: true,
+    })
+  }
+  if (boardId) {
+    items.splice(ctxWorkspaceId && ctxSpaceId ? 3 : ctxWorkspaceId || ctxSpaceId ? 2 : 1, 0, {
+      to: `/boards/${boardId}`,
+      labelKey: 'nav.board',
       icon: LayoutGrid,
       end: true,
     })
@@ -138,6 +154,7 @@ export function AppSidebar({ mobile = false, onNavigate }: AppSidebarProps) {
           </NavLink>
         )
       })}
+      <RecentBoardsNav iconOnly={iconOnly} onNavigate={onNavigate} />
     </nav>
   )
 
@@ -150,7 +167,7 @@ export function AppSidebar({ mobile = false, onNavigate }: AppSidebarProps) {
       animate={{ width: collapsed ? 56 : 224 }}
       transition={reduced(softSpring, reduceMotion)}
     >
-      <div className="sticky top-14 flex max-h-[calc(100vh-3.5rem)] flex-col gap-2 overflow-y-auto p-2">
+      <div className="sticky top-16 flex max-h-[calc(100vh-4rem)] flex-col gap-2 overflow-y-auto p-2">
         <div className={collapsed ? 'px-0' : 'p-1'}>{nav}</div>
         <div className={`mt-auto border-t border-border/40 pt-2 ${collapsed ? '' : 'px-1'}`}>
           <Button

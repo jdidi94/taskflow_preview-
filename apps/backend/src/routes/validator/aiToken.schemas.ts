@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { objectIdSchema } from './workspace.schemas.js'
 
-export const aiProviderEnum = z.enum(['google', 'openai', 'anthropic', 'azure'])
+export const aiProviderEnum = z.enum(['google', 'openai', 'anthropic', 'azure', 'groq'])
 
 const aiTokenStatusEnum = z.enum(['active', 'inactive', 'archived', 'invalid'])
 

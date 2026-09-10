@@ -1,13 +1,15 @@
 import { env } from '../config/env.js'
+import { logger } from '../config/logger.js'
 import type { AiProvider } from '../models/Integration.js'
 import { aiTokenService } from '../services/aiToken.service.js'
 import { generateAnthropicText } from './anthropic.client.js'
 import { generateAzureOpenAIText } from './azure-openai.client.js'
 import { generateGoogleAiText } from './google-ai.client.js'
+import { generateGroqText } from './groq.client.js'
 import { generateOpenAIText } from './openai.client.js'
 import type { AiGenerationRequest, AiGenerationResult, ResolvedAiProviderConfig } from './types.js'
 
-const PROVIDER_ORDER: AiProvider[] = ['openai', 'google', 'anthropic', 'azure']
+const PROVIDER_ORDER: AiProvider[] = ['groq', 'google', 'openai', 'anthropic', 'azure']
 
 function getNumber(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
@@ -27,6 +29,16 @@ function buildIntegrationConfig(provider: AiProvider, tokenData: { token: string
         source: 'integration',
         apiKey: tokenData.token,
         model: getString(config.model, env.OPENAI_MODEL),
+        temperature: getNumber(config.temperature, 0.3),
+        maxTokens: getNumber(config.maxTokens, 2000),
+        timeout: getNumber(config.timeout, 30000),
+      }
+    case 'groq':
+      return {
+        provider,
+        source: 'integration',
+        apiKey: tokenData.token,
+        model: getString(config.model, env.GROQ_MODEL),
         temperature: getNumber(config.temperature, 0.3),
         maxTokens: getNumber(config.maxTokens, 2000),
         timeout: getNumber(config.timeout, 30000),
@@ -76,6 +88,17 @@ function getEnvConfig(provider: AiProvider): ResolvedAiProviderConfig | null {
         source: 'env',
         apiKey: env.OPENAI_API_KEY,
         model: env.OPENAI_MODEL,
+        temperature: 0.3,
+        maxTokens: 2000,
+        timeout: 30000,
+      }
+    case 'groq':
+      if (!env.GROQ_API_KEY) return null
+      return {
+        provider,
+        source: 'env',
+        apiKey: env.GROQ_API_KEY,
+        model: env.GROQ_MODEL,
         temperature: 0.3,
         maxTokens: 2000,
         timeout: 30000,
@@ -138,46 +161,67 @@ export async function resolveAiProvider(preferredProvider?: AiProvider): Promise
 export async function generateAiText(
   request: Omit<AiGenerationRequest, 'model'> & { preferredProvider?: AiProvider; model?: string },
 ): Promise<(AiGenerationResult & { source: 'integration' | 'env' }) | null> {
-  const resolved = await resolveAiProvider(request.preferredProvider)
-  if (!resolved) return null
+  const providers = uniqueProviderOrder(request.preferredProvider)
+  const errors: string[] = []
 
-  const finalRequest: AiGenerationRequest = {
-    ...request,
-    model: request.model ?? resolved.model,
-    temperature: request.temperature ?? resolved.temperature,
-    maxTokens: request.maxTokens ?? resolved.maxTokens,
-    timeout: request.timeout ?? resolved.timeout,
-  }
+  for (const provider of providers) {
+    const tokenData = await aiTokenService.getRawActiveToken(provider)
+    const resolved = tokenData
+      ? buildIntegrationConfig(provider, tokenData)
+      : getEnvConfig(provider)
+    if (!resolved) continue
 
-  let result: AiGenerationResult
-  switch (resolved.provider) {
-    case 'openai':
-      result = await generateOpenAIText(resolved.apiKey, finalRequest)
-      break
-    case 'anthropic':
-      result = await generateAnthropicText(resolved.apiKey, finalRequest)
-      break
-    case 'azure':
-      if (!resolved.endpoint || !resolved.deployment) {
-        throw new Error('Azure OpenAI requires endpoint and deployment')
+    const finalRequest: AiGenerationRequest = {
+      ...request,
+      model: request.model ?? resolved.model,
+      temperature: request.temperature ?? resolved.temperature,
+      maxTokens: request.maxTokens ?? resolved.maxTokens,
+      timeout: request.timeout ?? resolved.timeout,
+    }
+
+    try {
+      let result: AiGenerationResult
+      switch (resolved.provider) {
+        case 'openai':
+          result = await generateOpenAIText(resolved.apiKey, finalRequest)
+          break
+        case 'groq':
+          result = await generateGroqText(resolved.apiKey, finalRequest)
+          break
+        case 'anthropic':
+          result = await generateAnthropicText(resolved.apiKey, finalRequest)
+          break
+        case 'azure':
+          if (!resolved.endpoint || !resolved.deployment) {
+            throw new Error('Azure OpenAI requires endpoint and deployment')
+          }
+          result = await generateAzureOpenAIText(
+            resolved.apiKey,
+            resolved.endpoint,
+            resolved.deployment,
+            finalRequest,
+          )
+          break
+        case 'google':
+        default:
+          result = await generateGoogleAiText(resolved.apiKey, finalRequest)
+          break
       }
-      result = await generateAzureOpenAIText(
-        resolved.apiKey,
-        resolved.endpoint,
-        resolved.deployment,
-        finalRequest,
-      )
-      break
-    case 'google':
-    default:
-      result = await generateGoogleAiText(resolved.apiKey, finalRequest)
-      break
+
+      if (resolved.source === 'integration') {
+        await aiTokenService.markUsage(resolved.provider)
+      }
+
+      return { ...result, source: resolved.source }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      errors.push(`${provider}: ${message}`)
+      logger.error({ provider, err: message }, 'AI provider failed')
+    }
   }
 
-  if (resolved.source === 'integration') {
-    await aiTokenService.markUsage(resolved.provider)
+  if (errors.length) {
+    throw new Error(errors.join(' | '))
   }
-
-  return { ...result, source: resolved.source }
+  return null
 }
-

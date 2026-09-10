@@ -16,7 +16,15 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
-    "show:ports": "echo \"Backend: http://localhost:3001\" && echo \"Main App: http://localhost:5173\" && echo \"Admin Panel: http://localhost:5175\""
+    "test": "turbo run test",
+    "start:backend": "npm run start -w @taskflow/backend",
+    "preview:main": "npm run preview -w @taskflow/main -- --host 0.0.0.0 --port 5173",
+    "preview:admin": "npm run preview -w @taskflow/admin -- --host 0.0.0.0 --port 5175",
+    "start:production": "concurrently -k -p \"[{name}]\" -n \"Backend,Main,Admin\" -c \"red,blue,green\" \"npm run start:backend\" \"npm run preview:main\" \"npm run preview:admin\"",
+    "show:ports": "echo \"Backend: http://localhost:3001\" && echo \"Main App: http://localhost:5173\" && echo \"Admin Panel: http://localhost:5175\"",
+    "show:ports:prod": "echo \"Backend: http://localhost:3001\" && echo \"Main App: http://localhost:8080\" && echo \"Admin Panel: http://localhost:8081\"",
+    "seed": "npm run seed -w @taskflow/backend",
+    "seed:reset": "npm run seed:reset -w @taskflow/backend"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

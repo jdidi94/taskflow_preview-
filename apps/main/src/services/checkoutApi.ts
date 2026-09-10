@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 
 export type CheckoutSession = {
   id: string
@@ -10,6 +10,7 @@ export type CheckoutSession = {
 export const checkoutApi = createApi({
   reducerPath: 'checkoutApi',
   baseQuery,
+  ...rtkQueryDefaults,
   endpoints: (builder) => ({
     createCheckoutSession: builder.mutation<
       CheckoutSession,

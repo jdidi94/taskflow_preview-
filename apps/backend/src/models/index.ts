@@ -59,3 +59,10 @@ export {
   type TemplateStatus,
   type TemplateCategory,
 } from './Template.js'
+export {
+  GitHubOrgSnapshot,
+  type IGitHubOrgSnapshot,
+  type IGitHubRepoStatRow,
+  type IGitHubPulseTotals,
+  type GitHubPulseWindow,
+} from './GitHubOrgSnapshot.js'

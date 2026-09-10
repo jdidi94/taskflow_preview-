@@ -3,8 +3,9 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Badge, Button } from '@taskflow/ui'
-import { GripVertical, Plus, Trash2 } from 'lucide-react'
+import { GripVertical, Trash2 } from 'lucide-react'
 
+import { ColumnQuickAdd } from '@/components/board/ColumnQuickAdd'
 import { TaskCard } from '@/components/board/TaskCard'
 import { ColumnWipMeter } from '@/components/board/ColumnWipMeter'
 import { useI18n } from '@/i18n'
@@ -15,20 +16,38 @@ type KanbanColumnProps = {
   column: BoardColumn
   tasks: Task[]
   members?: NormalizedWorkspaceMember[]
-  onAddTask: (columnId: string) => void
+  highlightedTaskId?: string | null
+  onQuickAdd: (columnId: string, title: string) => Promise<void>
+  onAddTaskMore?: (columnId: string) => void
   onEditTask: (task: Task) => void
   onDeleteTask: (task: Task) => void
   onDeleteColumn: (column: BoardColumn) => void
+  focused?: boolean
+  onFocusColumn?: (columnId: string) => void
+  quickAddOpen?: boolean
+  onQuickAddOpenChange?: (open: boolean) => void
+  rovingTaskId?: string | null
+  onRovingFocus?: (taskId: string) => void
+  disabled?: boolean
 }
 
 export function KanbanColumn({
   column,
   tasks,
   members,
-  onAddTask,
+  highlightedTaskId,
+  onQuickAdd,
+  onAddTaskMore,
   onEditTask,
   onDeleteTask,
   onDeleteColumn,
+  focused,
+  onFocusColumn,
+  quickAddOpen,
+  onQuickAddOpenChange,
+  rovingTaskId,
+  onRovingFocus,
+  disabled,
 }: KanbanColumnProps) {
   const { t } = useI18n()
   const {
@@ -41,11 +60,13 @@ export function KanbanColumn({
   } = useSortable({
     id: `sort-col-${column.id}`,
     data: { type: 'column', column },
+    disabled: Boolean(disabled),
   })
 
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `column:${column.id}`,
     data: { type: 'column-drop', columnId: column.id },
+    disabled: Boolean(disabled),
   })
 
   const style = {
@@ -53,6 +74,8 @@ export function KanbanColumn({
     transition,
     opacity: isDragging ? 0.45 : 1,
   }
+
+  const dragHandleProps = disabled ? {} : { ...attributes, ...listeners }
 
   const overWip = column.limit != null && column.limit > 0 && tasks.length > column.limit
 
@@ -63,23 +86,35 @@ export function KanbanColumn({
         setDroppableRef(node)
       }}
       style={style}
-      className={`flex min-h-[28rem] w-72 shrink-0 flex-col rounded-xl border bg-muted/35 p-3 ${
+      tabIndex={-1}
+      aria-current={focused || undefined}
+      aria-label={focused ? `${column.name} — ${t('board.focusedColumn')}` : undefined}
+      onFocusCapture={() => onFocusColumn?.(column.id)}
+      onPointerDownCapture={(event) => {
+        const target = event.target
+        if (!(target instanceof HTMLElement)) return
+        if (target.closest('button, a, input, textarea, select')) return
+        onFocusColumn?.(column.id)
+      }}
+      className={`flex min-h-[28rem] w-72 max-md:w-[min(18rem,calc(100vw-2.5rem))] shrink-0 snap-start snap-always flex-col rounded-xl border bg-muted/35 p-3 ${
         overWip ? 'border-destructive/50' : 'border-border/70'
-      } ${isOver ? 'ring-2 ring-primary/40' : ''}`}
+      } ${isOver ? 'ring-2 ring-primary/40' : ''} ${focused && !isOver ? 'ring-2 ring-primary/25' : ''}`}
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <button
-            type="button"
-            className="inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground hover:bg-muted active:cursor-grabbing"
-            title={t('board.reorderColumn')}
-            aria-label={t('board.reorderColumn')}
-            {...attributes}
-            {...listeners}
+        <div
+          className={`flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-0.5 ${
+            disabled ? '' : 'cursor-grab active:cursor-grabbing hover:bg-muted/60'
+          }`}
+          title={disabled ? undefined : t('board.reorderColumn')}
+          {...dragHandleProps}
+        >
+          <span
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground"
+            aria-hidden
           >
             <GripVertical className="h-3.5 w-3.5" />
-          </button>
-          <h2 className="truncate text-sm font-semibold">{column.name}</h2>
+          </span>
+          <span className="min-w-0 truncate text-start text-sm font-semibold">{column.name}</span>
           <Badge
             variant={overWip ? 'error' : 'secondary'}
             className="tabular-nums"
@@ -103,6 +138,7 @@ export function KanbanColumn({
           className="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-destructive"
           title={t('board.deleteColumn')}
           aria-label={t('board.deleteColumn')}
+          disabled={disabled}
           onClick={() => onDeleteColumn(column)}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -116,21 +152,25 @@ export function KanbanColumn({
               key={task.id}
               task={task}
               members={members}
+              highlighted={highlightedTaskId === task.id}
+              rovingActive={rovingTaskId === task.id}
+              onRovingFocus={onRovingFocus}
               onEdit={onEditTask}
               onDelete={onDeleteTask}
             />
           ))}
         </div>
       </SortableContext>
-      <Button
-        className="mt-3 gap-1.5"
-        size="sm"
-        variant="outline"
-        onClick={() => onAddTask(column.id)}
-      >
-        <Plus className="h-3.5 w-3.5" aria-hidden />
-        {t('board.addTask')}
-      </Button>
+      {tasks.length === 0 ? (
+        <p className="mt-2 text-xs text-muted-foreground">{t('board.emptyColumnHint')}</p>
+      ) : null}
+      <ColumnQuickAdd
+        disabled={disabled}
+        open={quickAddOpen}
+        onOpenChange={onQuickAddOpenChange}
+        onSubmit={(title) => onQuickAdd(column.id, title)}
+        onMore={onAddTaskMore ? () => onAddTaskMore(column.id) : undefined}
+      />
     </section>
   )
 }

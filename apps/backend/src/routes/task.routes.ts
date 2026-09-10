@@ -5,6 +5,7 @@ import {
   createTaskSchema,
   updateTaskSchema,
   moveTaskSchema,
+  restoreTaskSchema,
   bulkUpdateTasksSchema,
   createCommentSchema,
   updateCommentSchema,
@@ -44,6 +45,12 @@ taskRouter.patch(
   taskController.moveTask,
 )
 taskRouter.delete('/:id', validateParams(taskIdParamSchema), taskController.deleteTask)
+taskRouter.post(
+  '/:id/restore',
+  validateParams(taskIdParamSchema),
+  validateBody(restoreTaskSchema),
+  taskController.restoreTask,
+)
 taskRouter.post(
   '/:id/duplicate',
   validateParams(taskIdParamSchema),

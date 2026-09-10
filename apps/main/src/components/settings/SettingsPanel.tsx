@@ -100,19 +100,13 @@ export function SettingsPanel() {
             </h1>
             <p className="mt-2 text-sm text-muted-foreground sm:text-base">{t('settings.subtitle')}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col items-stretch gap-1 sm:items-end">
             <Link to="/settings/upgrade">
               <Button variant="outline" size="sm">
                 {t('settings.upgrade')}
               </Button>
             </Link>
-            {import.meta.env.DEV ? (
-              <Link to="/dev/sockets">
-                <Button variant="ghost" size="sm">
-                  {t('settings.socketLogsLink')}
-                </Button>
-              </Link>
-            ) : null}
+            <p className="max-w-xs text-xs text-muted-foreground sm:text-end">{t('settings.upgradeHint')}</p>
           </div>
         </div>
       </section>

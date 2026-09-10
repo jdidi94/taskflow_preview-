@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Badge, Button } from '@taskflow/ui'
@@ -10,11 +10,15 @@ import { PRIORITY_BADGE, PRIORITY_KEYS } from '@/components/board/priorityStyles
 import { assigneeId, assigneeLabel } from '@/components/board/taskHelpers'
 import { type NormalizedWorkspaceMember } from '@/components/workspace/normalizeMembers'
 import { useI18n } from '@/i18n'
+import { focusRingClassName } from '@/lib/focusRing'
 import type { Task, TaskUserRef } from '@/types/domain'
 
 type TaskCardProps = {
   task: Task
   members?: NormalizedWorkspaceMember[]
+  highlighted?: boolean
+  rovingActive?: boolean
+  onRovingFocus?: (taskId: string) => void
   onEdit: (task: Task) => void
   onDelete: (task: Task) => void
 }
@@ -24,12 +28,26 @@ function assigneeAvatar(value: string | TaskUserRef): string | null | undefined 
   return undefined
 }
 
-export function TaskCard({ task, members = [], onEdit, onDelete }: TaskCardProps) {
+export function TaskCard({
+  task,
+  members = [],
+  highlighted,
+  rovingActive,
+  onRovingFocus,
+  onEdit,
+  onDelete,
+}: TaskCardProps) {
   const { t } = useI18n()
+  const highlightRef = useRef<HTMLDivElement | null>(null)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: 'task', task },
   })
+
+  useEffect(() => {
+    if (!highlighted) return
+    highlightRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+  }, [highlighted])
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -60,11 +78,19 @@ export function TaskCard({ task, members = [], onEdit, onDelete }: TaskCardProps
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node)
+        highlightRef.current = node
+      }}
       style={style}
-      className="relative overflow-hidden rounded-lg border border-border/70 bg-card p-3 shadow-sm"
+      data-task-card={task.id}
+      className={`relative overflow-hidden rounded-lg border bg-card p-3 shadow-sm ${focusRingClassName} ${
+        highlighted ? 'border-primary ring-2 ring-primary/40' : 'border-border/70'
+      }`}
       {...attributes}
       {...listeners}
+      tabIndex={rovingActive ? 0 : -1}
+      onFocus={() => onRovingFocus?.(task.id)}
     >
       <PriorityRail priority={task.priority} />
       <div className="ps-2.5">
@@ -141,7 +167,7 @@ export function TaskCard({ task, members = [], onEdit, onDelete }: TaskCardProps
               onDelete(task)
             }}
           >
-            {t('common.delete')}
+            {t('archive.archive')}
           </Button>
         </div>
       </div>

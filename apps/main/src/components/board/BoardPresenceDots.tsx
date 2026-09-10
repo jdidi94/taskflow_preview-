@@ -52,7 +52,14 @@ export function BoardPresenceDots({ users, max = 5, className = '' }: BoardPrese
               className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-muted text-[10px] font-semibold text-muted-foreground"
             >
               {user.avatar ? (
-                <img src={user.avatar} alt="" className="h-full w-full object-cover" />
+                <img
+                  src={user.avatar}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <span aria-hidden>{initials(user.name)}</span>
               )}

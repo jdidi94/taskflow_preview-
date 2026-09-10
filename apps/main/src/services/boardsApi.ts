@@ -1,11 +1,12 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 import type { ApiSuccess, Board, BoardColumn } from '@/types/domain'
 
 export const boardsApi = createApi({
   reducerPath: 'boardsApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Boards', 'Board'],
   endpoints: (builder) => ({
     listBySpace: builder.query<ApiSuccess<Board[]>, string>({
@@ -67,6 +68,16 @@ export const boardsApi = createApi({
     restoreBoard: builder.mutation<ApiSuccess<Board>, { id: string; spaceId: string }>({
       query: ({ id }) => ({
         url: `/boards/${id}/restore`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_result, _error, arg) => [
+        { type: 'Boards', id: arg.spaceId },
+        { type: 'Board', id: arg.id },
+      ],
+    }),
+    permanentDeleteBoard: builder.mutation<{ success: true }, { id: string; spaceId: string }>({
+      query: ({ id }) => ({
+        url: `/boards/${id}/permanent`,
         method: 'POST',
       }),
       invalidatesTags: (_result, _error, arg) => [
@@ -144,10 +155,12 @@ export const {
   useListBySpaceQuery,
   useLazyListBySpaceQuery,
   useGetBoardQuery,
+  useLazyGetBoardQuery,
   useCreateBoardMutation,
   useUpdateBoardMutation,
   useArchiveBoardMutation,
   useRestoreBoardMutation,
+  usePermanentDeleteBoardMutation,
   useReorderColumnsMutation,
   useCreateColumnMutation,
   useUpdateColumnMutation,

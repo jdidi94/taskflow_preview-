@@ -20,6 +20,7 @@ type BoardSocket = Socket & {
       name: string
       email?: string
       avatar?: string | null
+      viewingTaskId?: string | null
     }
     joinedBoards?: Set<string>
   }
@@ -33,7 +34,16 @@ type PresenceStatus = 'online' | 'away' | 'busy' | 'offline' | 'active'
 
 function collectBoardPresence(boardNamespace: ReturnType<Server['of']>, boardId: string) {
   const room = boardNamespace.adapter.rooms.get(`board:${boardId}`)
-  if (!room) return [] as Array<{ id: string; name: string; email?: string; avatar?: string | null; status: PresenceStatus }>
+  if (!room) {
+    return [] as Array<{
+      id: string
+      name: string
+      email?: string
+      avatar?: string | null
+      status: PresenceStatus
+      viewingTaskId?: string | null
+    }>
+  }
 
   const users: Array<{
     id: string
@@ -41,6 +51,7 @@ function collectBoardPresence(boardNamespace: ReturnType<Server['of']>, boardId:
     email?: string
     avatar?: string | null
     status: PresenceStatus
+    viewingTaskId?: string | null
   }> = []
   const seen = new Set<string>()
 
@@ -55,6 +66,7 @@ function collectBoardPresence(boardNamespace: ReturnType<Server['of']>, boardId:
       email: identity.email,
       avatar: identity.avatar ?? null,
       status: 'online',
+      viewingTaskId: identity.viewingTaskId ?? null,
     })
   }
 
@@ -601,12 +613,14 @@ export function registerBoardNamespace(io: Server) {
       },
     )
 
-    socket.on('board:view', (data: { boardId?: string }) => {
+    socket.on('board:view', (data: { boardId?: string; taskId?: string | null }) => {
       const boardId = data?.boardId
       if (!boardId) return
+      if (data.taskId !== undefined) identity.viewingTaskId = data.taskId || null
       socket.to(`board:${boardId}`).emit('board:viewer', {
-        user: identity,
+        user: { ...identity, viewingTaskId: identity.viewingTaskId ?? null },
         boardId,
+        viewingTaskId: identity.viewingTaskId ?? null,
         timestamp: new Date(),
       })
     })
@@ -681,14 +695,21 @@ export function registerBoardNamespace(io: Server) {
       })
     })
 
-    socket.on('presence:update', (data: { boardId?: string; status?: string }) => {
+    socket.on('presence:update', (data: { boardId?: string; status?: string; taskId?: string | null }) => {
       const boardId = data?.boardId
       if (!boardId) return
+      if (data.taskId !== undefined) identity.viewingTaskId = data.taskId || null
       const status = (data.status ?? 'online') as PresenceStatus
       socket.to(`board:${boardId}`).emit('presence:update', {
-        user: identity,
+        user: { ...identity, viewingTaskId: identity.viewingTaskId ?? null },
         boardId,
         status,
+        viewingTaskId: identity.viewingTaskId ?? null,
+        timestamp: new Date(),
+      })
+      boardNamespace.to(`board:${boardId}`).emit('board:presence', {
+        boardId,
+        users: collectBoardPresence(boardNamespace, boardId),
         timestamp: new Date(),
       })
     })

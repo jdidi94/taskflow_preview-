@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Alert, Badge, Card, CardContent } from '@taskflow/ui'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Alert, Badge, Button, Card, CardContent, Input } from '@taskflow/ui'
 
 import { ChatComposer, ChatMessageList } from '@/components/chat/ChatThread'
 import { PageBreadcrumbs } from '@/components/common/PageBreadcrumbs'
@@ -7,6 +7,7 @@ import { useChatSocket } from '@/hooks/useChatSocket'
 import { useI18n } from '@/i18n'
 import { getApiErrorMessage } from '@/lib/apiError'
 import {
+  clearStoredChatId,
   getStoredChatId,
   useGetChatHistoryQuery,
   useSendChatMessageMutation,
@@ -19,6 +20,7 @@ export function ChatPanel() {
   const user = useAppSelector((state) => state.auth.user)
   const [chatId, setChatId] = useState<string | null>(() => getStoredChatId())
   const [draft, setDraft] = useState('')
+  const [historyQuery, setHistoryQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const [startChat, { isLoading: starting }] = useStartChatMutation()
@@ -27,7 +29,20 @@ export function ChatPanel() {
   const { connected } = useChatSocket(chatId ?? undefined)
 
   const messages = data?.data.messages ?? []
+  const filteredMessages = useMemo(() => {
+    const q = historyQuery.trim().toLowerCase()
+    if (!q) return messages
+    return messages.filter((message) => message.content.toLowerCase().includes(q))
+  }, [historyQuery, messages])
   const busy = starting || sending
+
+  function startNewConversation() {
+    clearStoredChatId()
+    setChatId(null)
+    setDraft('')
+    setHistoryQuery('')
+    setError(null)
+  }
 
   useEffect(() => {
     const stored = getStoredChatId()
@@ -75,9 +90,14 @@ export function ChatPanel() {
             </h1>
             <p className="mt-2 text-sm text-muted-foreground sm:text-base">{t('chat.subtitle')}</p>
           </div>
-          <Badge variant={connected ? 'success' : 'outline'}>
-            {connected ? t('chat.connected') : t('chat.reconnecting')}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={connected ? 'success' : 'outline'}>
+              {connected ? t('chat.connected') : t('chat.reconnecting')}
+            </Badge>
+            <Button type="button" size="sm" variant="outline" onClick={startNewConversation}>
+              {t('chat.newConversation')}
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -86,11 +106,26 @@ export function ChatPanel() {
 
       <Card className="overflow-hidden border-border/70">
         <CardContent className="flex h-[min(70vh,36rem)] flex-col gap-0 p-0">
+          <div className="border-b border-border/60 px-4 py-2">
+            <label className="sr-only" htmlFor="chat-history-search">
+              {t('chat.searchHistory')}
+            </label>
+            <Input
+              id="chat-history-search"
+              value={historyQuery}
+              onChange={(event) => setHistoryQuery(event.target.value)}
+              placeholder={t('chat.searchPlaceholder')}
+            />
+          </div>
           <ChatMessageList
-            messages={messages}
+            messages={filteredMessages}
             selfId={user?.id}
             loading={Boolean(chatId && isLoading)}
-            empty={<p className="text-sm text-muted-foreground">{t('chat.empty')}</p>}
+            empty={
+              <p className="text-sm text-muted-foreground">
+                {historyQuery.trim() ? t('chat.noHistoryMatch') : t('chat.empty')}
+              </p>
+            }
             className="px-4"
           />
           <ChatComposer

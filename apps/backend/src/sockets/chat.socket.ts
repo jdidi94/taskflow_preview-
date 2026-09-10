@@ -125,12 +125,15 @@ export function registerChatNamespace(io: Server) {
           return
         }
 
-        const chat = await Chat.findOne({
-          _id: data.chatId,
-          'participants.id': userId,
-        })
+        const chat = await Chat.findById(data.chatId)
 
         if (!chat) {
+          socket.emit('error', { message: 'Chat not found or access denied' })
+          return
+        }
+
+        const isParticipant = chat.participants.some((participant) => String(participant.id) === userId)
+        if (!isParticipant && userType !== 'admin') {
           socket.emit('error', { message: 'Chat not found or access denied' })
           return
         }
@@ -189,11 +192,13 @@ export function registerChatNamespace(io: Server) {
           return
         }
 
-        const chat = await Chat.findOne({
-          _id: data.chatId,
-          'participants.id': userId,
-        })
+        const chat = await Chat.findById(data.chatId)
         if (!chat) {
+          socket.emit('error', { message: 'Chat not found or access denied' })
+          return
+        }
+        const isParticipant = chat.participants.some((participant) => String(participant.id) === userId)
+        if (!isParticipant && userType !== 'admin') {
           socket.emit('error', { message: 'Chat not found or access denied' })
           return
         }

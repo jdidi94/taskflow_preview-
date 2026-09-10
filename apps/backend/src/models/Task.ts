@@ -103,5 +103,10 @@ const taskSchema = new Schema<ITask>(
   { timestamps: true },
 )
 
+taskSchema.index({ board: 1, column: 1, position: 1 })
+taskSchema.index({ board: 1, archived: 1, position: 1 })
+taskSchema.index({ assignees: 1, archived: 1, dueDate: 1 })
+taskSchema.index({ space: 1, archived: 1 })
+
 export const Task: Model<ITask> =
   mongoose.models.Task ?? mongoose.model<ITask>('Task', taskSchema)

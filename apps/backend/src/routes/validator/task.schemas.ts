@@ -43,6 +43,13 @@ export const moveTaskSchema = z.object({
   position: z.number().int().min(0),
 })
 
+export const restoreTaskSchema = z
+  .object({
+    columnId: objectIdSchema.optional(),
+    position: z.number().int().min(0).optional(),
+  })
+  .default({})
+
 export const bulkUpdateTasksSchema = z.object({
   taskIds: z.array(objectIdSchema).min(1),
   updates: updateTaskSchema,
@@ -73,8 +80,9 @@ export const listTasksQuerySchema = z.object({
 })
 
 export const listAssignedTasksQuerySchema = z.object({
+  scope: z.enum(['upcoming', 'all']).optional(),
   withinDays: z.coerce.number().int().min(1).max(90).optional(),
-  limit: z.coerce.number().int().min(1).max(50).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
 })
 
 export const taskIdParamSchema = z.object({ id: objectIdSchema })

@@ -4,6 +4,7 @@ import { Types } from 'mongoose'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { AppError } from '../utils/AppError.js'
 import { Notification } from '../models/Notification.js'
+import { serializeNotification } from '../utils/serializeNotification.js'
 import { UserPreferences } from '../models/UserPreferences.js'
 import { notificationService } from '../services/notification.service.js'
 import { emitUnreadCount } from '../sockets/emitHelpers.js'
@@ -47,7 +48,7 @@ export const getNotifications = asyncHandler(async (req: any, res: Response) => 
   res.json({
     success: true,
     data: {
-      notifications,
+      notifications: notifications.map((item) => serializeNotification(item)),
       unreadCount,
       pagination: {
         page,

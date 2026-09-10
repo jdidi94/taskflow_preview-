@@ -43,6 +43,15 @@ export type NotificationStats = {
 
 export function normalizeNotification(raw: AppNotification & Record<string, unknown>): AppNotification {
   const id = String(raw.id ?? raw._id ?? '')
+  const related = raw.relatedEntity as { entityType?: string; entityId?: unknown } | null | undefined
+  const meta = raw.metadata
+  const metadata =
+    meta instanceof Map
+      ? Object.fromEntries(meta.entries())
+      : meta && typeof meta === 'object'
+        ? { ...(meta as Record<string, unknown>) }
+        : {}
+
   return {
     ...raw,
     id,
@@ -51,10 +60,11 @@ export function normalizeNotification(raw: AppNotification & Record<string, unkn
     message: String(raw.message ?? ''),
     priority: (raw.priority as NotificationPriority) ?? 'medium',
     isRead: Boolean(raw.isRead),
-    relatedEntity: raw.relatedEntity
+    metadata,
+    relatedEntity: related
       ? {
-          entityType: String((raw.relatedEntity as { entityType?: string }).entityType ?? ''),
-          entityId: String((raw.relatedEntity as { entityId?: string }).entityId ?? ''),
+          entityType: String(related.entityType ?? ''),
+          entityId: String(related.entityId ?? ''),
         }
       : null,
   }

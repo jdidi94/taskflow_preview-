@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle } from '@taskflow/ui'
 
 import { AuthField } from '@/components/auth/AuthField'
 import { OAuthButtons } from '@/components/auth/OAuthButtons'
 import { useI18n } from '@/i18n'
 import { getApiErrorMessage } from '@/lib/apiError'
+import { safeInternalPath } from '@/lib/safeInternalPath'
 import { useRegisterMutation } from '@/services/authApi'
 import { useAppDispatch } from '@/store/hooks'
 import { setBootstrapped, setCredentials } from '@/store/slices/authSlice'
@@ -13,6 +14,7 @@ import { setBootstrapped, setCredentials } from '@/store/slices/authSlice'
 export function RegisterForm() {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const dispatch = useAppDispatch()
   const [register, { isLoading }] = useRegisterMutation()
   const [name, setName] = useState('')
@@ -28,7 +30,8 @@ export function RegisterForm() {
       const result = await register({ name, email, password }).unwrap()
       dispatch(setCredentials({ token: result.token, user: result.user }))
       dispatch(setBootstrapped(true))
-      navigate('/dashboard', { replace: true })
+      const next = searchParams.get('next')
+      navigate(next ? safeInternalPath(next) : '/onboarding', { replace: true })
     } catch (err) {
       setError(getApiErrorMessage(err, t('auth.registerFailed')))
     }

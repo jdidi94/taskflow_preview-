@@ -12,6 +12,8 @@ export type MessageTree = {
     language: string
     loading: string
     tryAgain: string
+    errorTitle: string
+    errorBody: string
     delete: string
     breadcrumb: string
     email: string
@@ -21,6 +23,7 @@ export type MessageTree = {
     cancel: string
     close: string
     send: string
+    undo: string
   }
   auth: {
     welcomeBack: string
@@ -169,6 +172,7 @@ export type MessageTree = {
     contactMessage: string
     contactSending: string
     contactSent: string
+    contactError: string
   }
   notifications: {
     title: string
@@ -204,6 +208,13 @@ export type MessageTree = {
     openFab: string
     openFabUnread: string
     closeFab: string
+    fabTitle: string
+    fabHint: string
+    openFull: string
+    searchHistory: string
+    searchPlaceholder: string
+    noHistoryMatch: string
+    newConversation: string
   }
   settings: {
     title: string
@@ -264,7 +275,26 @@ export type MessageTree = {
     passwordChangeError: string
     passwordValidation: string
     passwordSameAsCurrent: string
-    socketLogsLink: string
+    upgradeHint: string
+  }
+  connection: {
+    reconnecting: string
+    offline: string
+    retry: string
+  }
+  maintenance: {
+    title: string
+    bodyOffline: string
+    bodyDb: string
+    hint: string
+    retry: string
+    checking: string
+  }
+  preview: {
+    title: string
+    body: string
+    contactHint: string
+    dismiss: string
   }
   invites: {
     title: string
@@ -321,6 +351,9 @@ export type MessageTree = {
     suggestAnother: string
     suggestImprove: string
     askAgent: string
+    panelToggleEdit: string
+    panelToggleAi: string
+    panelToggleEditDisabled: string
     placeSubtitle: string
     placeWelcome: string
     placeWelcomeOffline: string
@@ -355,6 +388,49 @@ export type MessageTree = {
     cancelBody: string
     backSettings: string
     stripeMissing: string
+    priceMonthly: string
+    featAiJobs: string
+    featSeats: string
+    featSpaces: string
+  }
+  onboarding: {
+    title: string
+    subtitle: string
+    stepWorkspace: string
+    stepInvite: string
+    stepStarter: string
+    workspaceTitle: string
+    workspaceSubtitle: string
+    continue: string
+    inviteTitle: string
+    inviteSubtitle: string
+    inviteSkip: string
+    skipSetup: string
+    starterTitle: string
+    starterSubtitle: string
+    sampleTitle: string
+    sampleBody: string
+    templateTitle: string
+    templateBody: string
+    templateEmpty: string
+    aiTitle: string
+    aiBody: string
+    aiPrompt: string
+    aiPromptPlaceholder: string
+    aiGenerate: string
+    aiUseBoard: string
+    creatingSample: string
+    error: string
+    sampleSpaceName: string
+    sampleBoardName: string
+    sampleBoardDescription: string
+    sampleTaskWelcome: string
+    sampleTaskInvite: string
+    sampleTaskMove: string
+    firstRunTitle: string
+    firstRunBody: string
+    firstRunCta: string
+    firstRunInvites: string
   }
   dashboard: {
     hello: string
@@ -564,6 +640,7 @@ export type MessageTree = {
   nav: {
     menu: string
     home: string
+    myTasks: string
     templates: string
     analytics: string
     ai: string
@@ -571,8 +648,25 @@ export type MessageTree = {
     settings: string
     workspace: string
     space: string
+    board: string
+    recentBoards: string
     collapseSidebar: string
     expandSidebar: string
+  }
+  myTasks: {
+    title: string
+    subtitle: string
+    overdue: string
+    dueSoon: string
+    byWorkspace: string
+    emptyTitle: string
+    empty: string
+    loadError: string
+    undated: string
+    untitledBoard: string
+    untitledWorkspace: string
+    boardInWorkspace: string
+    viewAll: string
   }
   command: {
     title: string
@@ -583,6 +677,11 @@ export type MessageTree = {
     groupWorkspace: string
     groupSpace: string
     groupBoard: string
+    groupAction: string
+    groupRecent: string
+    groupTask: string
+    askAgent: string
+    newTask: string
     hintNav: string
     hintOpen: string
   }
@@ -706,6 +805,30 @@ export type MessageTree = {
     reauthError: string
     orgLinkError: string
     orgUnlinkError: string
+    syncNeedsOrg: string
+    statsSectionTitle: string
+    statsOverviewTitle: string
+    statsOverviewHint: string
+    statsReposTitle: string
+    statsReposHint: string
+    statsPulseTitle: string
+    statsPulseHint: string
+    statsNotSynced: string
+    statsLoadError: string
+    statRepos: string
+    statOpenPrs: string
+    statOpenIssues: string
+    statLastActivity: string
+    colRepo: string
+    colOpenPrs: string
+    colOpenIssues: string
+    colLanguage: string
+    colLastPush: string
+    pulse7d: string
+    pulse30d: string
+    pulseCommits: string
+    pulsePrsMerged: string
+    pulseIssuesClosed: string
   }
   rules: {
     title: string
@@ -720,6 +843,8 @@ export type MessageTree = {
     eyebrow: string
     defaultDescription: string
     presenceLabel: string
+    viewerOne: string
+    viewerMany: string
     presenceMore: string
     presenceOnline: string
     presenceAway: string
@@ -731,6 +856,20 @@ export type MessageTree = {
     settingsSaved: string
     settingsSaveError: string
     settingsReadOnly: string
+    dangerTitle: string
+    dangerSubtitle: string
+    archiveLabel: string
+    archiveHint: string
+    restoreLabel: string
+    restoreHint: string
+    deleteLabel: string
+    deleteHint: string
+    deleteNeedArchive: string
+    deletePermanent: string
+    deleteTitle: string
+    deleteDescription: string
+    deleteConfirmLabel: string
+    deleteError: string
     visibility: string
     visibilityPrivate: string
     visibilityWorkspace: string
@@ -757,6 +896,23 @@ export type MessageTree = {
     color: string
     assignees: string
     assigneesEmpty: string
+    watchers: string
+    watchersHint: string
+    watchersEmpty: string
+    removeWatcher: string
+    watcherError: string
+    dependencies: string
+    dependenciesEmpty: string
+    addDependency: string
+    removeDependency: string
+    dependencyError: string
+    dependencyType: string
+    depBlocks: string
+    depBlockedBy: string
+    depRelated: string
+    dependencySearch: string
+    dependencyNoMatch: string
+    openDependency: string
     tags: string
     tagPlaceholder: string
     addTag: string
@@ -820,6 +976,55 @@ export type MessageTree = {
     calendarNext: string
     calendarMore: string
     calendarUndated: string
+    filterLabel: string
+    filterSearch: string
+    filterSearchPlaceholder: string
+    filterAssignee: string
+    filterAssigneeAll: string
+    filterAssigneeMe: string
+    filterAssigneeUnassigned: string
+    filterDue: string
+    filterDueAll: string
+    filterDueOverdue: string
+    filterDueToday: string
+    filterDueWeek: string
+    filterDueUndated: string
+    filterPriority: string
+    filterPriorityAll: string
+    filterClear: string
+    filterMatchCount: string
+    filterTotalCount: string
+    quickAddPlaceholder: string
+    quickAddMore: string
+    quickAddHint: string
+    quickAddError: string
+    taskNotFound: string
+    taskNotFoundDismiss: string
+    openTask: string
+    focusedColumn: string
+    emptyColumnHint: string
+    shortcutsTitle: string
+    shortcutsHint: string
+    shortcutOpenSheet: string
+    shortcutN: string
+    shortcutF: string
+    shortcutEsc: string
+    shortcutHelp: string
+    shortcutArrows: string
+    shortcutArrowsMove: string
+    shortcutCommand: string
+    toastMoved: string
+    toastArchived: string
+    moveError: string
+    archiveTaskError: string
+    restoreTaskError: string
+    autosaveSaving: string
+    autosaveSaved: string
+    autosaveRetry: string
+    conflictTitle: string
+    conflictBody: string
+    conflictReload: string
+    conflictKeep: string
   }
   archive: {
     archive: string
@@ -834,6 +1039,7 @@ export type MessageTree = {
     restoring: string
     errorTitle: string
     archivedSection: string
+    deletePermanent: string
     entityWorkspace: string
     entitySpace: string
     entityBoard: string
@@ -893,26 +1099,6 @@ export type MessageTree = {
     sourceDrive: string
     sourceUrl: string
   }
-  socketLogs: {
-    title: string
-    subtitle: string
-    reconnect: string
-    ping: string
-    clear: string
-    connected: string
-    disconnected: string
-    socketId: string
-    noSocketId: string
-    joinTitle: string
-    boardId: string
-    boardIdPlaceholder: string
-    joinBoard: string
-    feedTitle: string
-    feedEmpty: string
-    pongOk: string
-    pingFailed: string
-    joinFailed: string
-  }
 }
 
 export type MessageKey =
@@ -923,9 +1109,13 @@ export type MessageKey =
   | `notifications.${keyof MessageTree['notifications']}`
   | `chat.${keyof MessageTree['chat']}`
   | `settings.${keyof MessageTree['settings']}`
+  | `connection.${keyof MessageTree['connection']}`
+  | `maintenance.${keyof MessageTree['maintenance']}`
+  | `preview.${keyof MessageTree['preview']}`
   | `invites.${keyof MessageTree['invites']}`
   | `ai.${keyof MessageTree['ai']}`
   | `billing.${keyof MessageTree['billing']}`
+  | `onboarding.${keyof MessageTree['onboarding']}`
   | `dashboard.${keyof MessageTree['dashboard']}`
   | `workspace.${keyof MessageTree['workspace']}`
   | `wsSettings.${keyof MessageTree['wsSettings']}`
@@ -933,6 +1123,7 @@ export type MessageKey =
   | `space.${keyof MessageTree['space']}`
   | `board.${keyof MessageTree['board']}`
   | `nav.${keyof MessageTree['nav']}`
+  | `myTasks.${keyof MessageTree['myTasks']}`
   | `command.${keyof MessageTree['command']}`
   | `templates.${keyof MessageTree['templates']}`
   | `analytics.${keyof MessageTree['analytics']}`
@@ -943,4 +1134,3 @@ export type MessageKey =
   | `pageSubnav.${keyof MessageTree['pageSubnav']}`
   | `pagination.${keyof MessageTree['pagination']}`
   | `files.${keyof MessageTree['files']}`
-  | `socketLogs.${keyof MessageTree['socketLogs']}`

@@ -156,7 +156,14 @@ export function MembersSection({
                           aria-hidden
                         >
                           {member.avatar ? (
-                            <img src={member.avatar} alt="" className="h-full w-full object-cover" />
+                            <img
+                              src={member.avatar}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              referrerPolicy="no-referrer"
+                              className="h-full w-full object-cover"
+                            />
                           ) : (
                             initials(member.name || member.email)
                           )}

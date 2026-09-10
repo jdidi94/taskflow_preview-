@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 import type { ApiSuccess, Space, WorkspaceMemberUser } from '@/types/domain'
 
 export type SpaceMemberRole = 'viewer' | 'member' | 'admin'
@@ -14,6 +14,7 @@ export type SpaceMemberEntry = {
 export const spacesApi = createApi({
   reducerPath: 'spacesApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Spaces', 'Space', 'SpaceMembers'],
   endpoints: (builder) => ({
     listByWorkspace: builder.query<ApiSuccess<Space[]>, string>({

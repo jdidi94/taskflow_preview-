@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 import { tasksApi } from '@/services/tasksApi'
 import type { ApiSuccess, TaskFile } from '@/types/domain'
 
@@ -44,6 +44,7 @@ function normalizeFile(raw: Record<string, unknown>): TaskFile {
 export const filesApi = createApi({
   reducerPath: 'filesApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Files', 'Drive'],
   endpoints: (builder) => ({
     getFile: builder.query<ApiSuccess<TaskFile>, string>({

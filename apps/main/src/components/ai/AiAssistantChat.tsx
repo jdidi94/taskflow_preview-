@@ -5,6 +5,8 @@ import { Bot, Send, Sparkles, User } from 'lucide-react'
 
 import { useAiSocket, type GeneratedBoard } from '@/hooks/useAiSocket'
 import { useI18n } from '@/i18n'
+import { getApiErrorMessage } from '@/lib/apiError'
+import { suggestionLabel } from '@/lib/suggestionLabel'
 import { useCreateBoardMutation, useGetBoardQuery } from '@/services/boardsApi'
 import { useListByWorkspaceQuery } from '@/services/spacesApi'
 import { useCreateTaskMutation } from '@/services/tasksApi'
@@ -56,23 +58,26 @@ export function AiAssistantChat() {
   }, [spaceId, spaces])
 
   useEffect(() => {
-    if (messages.length > 0) return
-    setMessages([
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content: connected ? t('ai.welcome') : t('ai.welcomeOffline'),
-        suggestions: connected
-          ? [
-              t('ai.suggestMarketing'),
-              t('ai.suggestDev'),
-              t('ai.suggestExplain'),
-              t('ai.suggestTemplates'),
-            ]
-          : [],
-      },
-    ])
-  }, [connected, messages.length, t])
+    const welcome: ChatMessage = {
+      id: 'welcome',
+      role: 'assistant',
+      content: connected ? t('ai.welcome') : t('ai.welcomeOffline'),
+      suggestions: connected
+        ? [
+            t('ai.suggestMarketing'),
+            t('ai.suggestDev'),
+            t('ai.suggestExplain'),
+            t('ai.suggestTemplates'),
+          ]
+        : [],
+    }
+    setMessages((prev) => {
+      if (prev.length === 0) return [welcome]
+      // Socket often connects after first paint — refresh welcome only while it is still alone
+      if (prev.length === 1 && prev[0]?.id === 'welcome') return [welcome]
+      return prev
+    })
+  }, [connected, t])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -229,7 +234,7 @@ export function AiAssistantChat() {
           if (last?.generatingBoard) {
             next[next.length - 1] = {
               ...last,
-              content: err instanceof Error ? err.message : t('ai.error'),
+              content: getApiErrorMessage(err, t('ai.error')),
               generatingBoard: false,
               suggestions: [t('ai.suggestMarketing'), t('ai.suggestDev')],
             }
@@ -267,13 +272,16 @@ export function AiAssistantChat() {
         text,
         reply.boardPrompt,
         reply.reply,
-        reply.suggestions?.length
-          ? reply.suggestions
-          : [t('ai.suggestMarketing'), t('ai.suggestDev'), t('ai.suggestTemplates')],
+        (() => {
+          const chips = (reply.suggestions ?? []).map(suggestionLabel).filter(Boolean)
+          return chips.length
+            ? chips
+            : [t('ai.suggestMarketing'), t('ai.suggestDev'), t('ai.suggestTemplates')]
+        })(),
       )
     } catch (err) {
       appendAssistant({
-        content: err instanceof Error ? err.message : t('ai.error'),
+        content: getApiErrorMessage(err, t('ai.error')),
         suggestions: [t('ai.suggestMarketing'), t('ai.suggestExplain')],
       })
     } finally {
@@ -296,7 +304,7 @@ export function AiAssistantChat() {
       }).unwrap()
       setCreatedBoardId(board.data.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('ai.error'))
+      setError(getApiErrorMessage(err, t('ai.error')))
     }
   }
 
@@ -412,21 +420,25 @@ export function AiAssistantChat() {
                     ) : null}
                     {message.suggestions && message.suggestions.length > 0 ? (
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {message.suggestions.map((suggestion) => (
-                          <button
-                            key={suggestion}
-                            type="button"
-                            className={`rounded-md px-2 py-1 text-start text-xs transition-colors ${
-                              message.role === 'user'
-                                ? 'bg-primary-foreground/15 hover:bg-primary-foreground/25'
-                                : 'bg-background/80 hover:bg-background'
-                            }`}
-                            onClick={() => void onSend(undefined, suggestion)}
-                            disabled={busy}
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
+                        {message.suggestions.map((suggestion, index) => {
+                          const label = suggestionLabel(suggestion)
+                          if (!label) return null
+                          return (
+                            <button
+                              key={`${label}-${index}`}
+                              type="button"
+                              className={`rounded-md px-2 py-1 text-start text-xs transition-colors ${
+                                message.role === 'user'
+                                  ? 'bg-primary-foreground/15 hover:bg-primary-foreground/25'
+                                  : 'bg-background/80 hover:bg-background'
+                              }`}
+                              onClick={() => void onSend(undefined, label)}
+                              disabled={busy}
+                            >
+                              {label}
+                            </button>
+                          )
+                        })}
                       </div>
                     ) : null}
                   </div>

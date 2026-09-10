@@ -138,7 +138,7 @@ export const updateAdminProjectTemplateSchema = createAdminProjectTemplateSchema
   .refine((data) => Object.keys(data).length > 0, { message: 'No changes provided' })
 
 export const adminAnalyticsQuerySchema = z.object({
-  timeRange: z.string().optional(),
+  timeRange: z.enum(['1-month', '3-months', '6-months', '1-year']).optional(),
   format: z.enum(['json', 'csv']).optional(),
 })
 

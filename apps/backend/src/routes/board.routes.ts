@@ -52,6 +52,12 @@ boardRouter.post(
   requireBoardMember,
   boardController.restoreBoard,
 )
+boardRouter.post(
+  '/:id/permanent',
+  validateParams(boardIdParamSchema),
+  requireBoardMember,
+  boardController.permanentDeleteBoard,
+)
 
 boardRouter.get(
   '/:id/columns',

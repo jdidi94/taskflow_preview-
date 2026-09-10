@@ -6,6 +6,7 @@ import { AppError } from '../utils/AppError.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { param } from '../utils/params.js'
 import { githubService } from '../services/github.service.js'
+import { githubStatsService } from '../services/githubStats.service.js'
 
 async function getUserWithGithub(userId: string, includeToken = false) {
   const query = User.findById(userId)
@@ -26,13 +27,47 @@ function ensureGithubLinked(user: any) {
   if (!user.github?.linked) throw new AppError('GitHub account is not linked', 400)
 }
 
+function serializeSnapshot(snapshot: any) {
+  if (!snapshot) return null
+  return {
+    orgLogin: snapshot.orgLogin,
+    syncedAt: snapshot.syncedAt,
+    overview: {
+      reposCount: snapshot.overview?.reposCount ?? 0,
+      openPrs: snapshot.overview?.openPrs ?? 0,
+      openIssues: snapshot.overview?.openIssues ?? 0,
+      lastActivityAt: snapshot.overview?.lastActivityAt ?? null,
+    },
+    repos: (snapshot.repos ?? []).map((repo: any) => ({
+      id: repo.id,
+      name: repo.name,
+      fullName: repo.fullName,
+      htmlUrl: repo.htmlUrl,
+      language: repo.language ?? null,
+      stars: repo.stars ?? 0,
+      forks: repo.forks ?? 0,
+      openPrs: repo.openPrs ?? 0,
+      openIssues: repo.openIssues ?? 0,
+      pushedAt: repo.pushedAt ?? null,
+      isPrivate: Boolean(repo.isPrivate),
+    })),
+    pulse7: snapshot.pulse7 ?? { commits: 0, prsMerged: 0, issuesClosed: 0, series: [] },
+    pulse30: snapshot.pulse30 ?? { commits: 0, prsMerged: 0, issuesClosed: 0, series: [] },
+  }
+}
+
 export const linkGitHubAccount = asyncHandler(async (req: AuthedRequest, res: Response) => {
   const { code, redirectUri } = req.body as { code: string; redirectUri?: string }
   const user = await getUserWithGithub(req.user!.sub)
 
   if (user.github?.linked) throw new AppError('GitHub account is already linked', 400)
 
-  const tokenData = await githubService.exchangeCodeForToken(code, redirectUri)
+  let tokenData
+  try {
+    tokenData = await githubService.exchangeCodeForToken(code, redirectUri)
+  } catch (err) {
+    throw new AppError(err instanceof Error ? err.message : 'Failed to exchange GitHub code', 400)
+  }
   const scopeCheck = await githubService.checkTokenScopes(tokenData.accessToken)
   if (!scopeCheck.hasRequiredScopes) {
     throw new AppError('Insufficient GitHub permissions', 400, {
@@ -172,6 +207,7 @@ export const getOrganizationMembersWithEmails = asyncHandler(
 )
 
 export const syncGitHubData = asyncHandler(async (req: AuthedRequest, res: Response) => {
+  const { workspaceId, force } = req.body as { workspaceId: string; force?: boolean }
   const user = await getUserWithGithub(req.user!.sub, true)
   ensureGithubLinked(user)
   const accessToken = getLinkedAccessToken(user)
@@ -186,19 +222,108 @@ export const syncGitHubData = asyncHandler(async (req: AuthedRequest, res: Respo
     })
   }
 
+  const snapshot = await githubStatsService.syncWorkspaceOrg({
+    workspaceId,
+    userId: req.user!.sub,
+    accessToken,
+    force: Boolean(force),
+  })
+
   user.github = {
     ...user.github,
     linked: true,
     tokenValid: true,
-    lastSync: new Date(),
+    lastSync: snapshot.syncedAt,
   }
   await user.save()
 
   res.json({
     success: true,
     data: {
-      lastSync: user.github?.lastSync ?? null,
+      lastSync: snapshot.syncedAt,
       hasRequiredScopes: true,
+      orgLogin: snapshot.orgLogin,
+      overview: serializeSnapshot(snapshot)?.overview ?? null,
+    },
+  })
+})
+
+export const getGitHubStatsOverview = asyncHandler(async (req: AuthedRequest, res: Response) => {
+  const workspaceId = String((req as any).validatedQuery?.workspaceId ?? req.query.workspaceId ?? '')
+  const { orgLogin, snapshot } = await githubStatsService.getSnapshot(workspaceId, req.user!.sub)
+  if (!orgLogin) {
+    res.json({
+      success: true,
+      data: { linkedOrg: false, synced: false, overview: null, syncedAt: null, orgLogin: null },
+    })
+    return
+  }
+  const serialized = serializeSnapshot(snapshot)
+  res.json({
+    success: true,
+    data: {
+      linkedOrg: true,
+      synced: Boolean(serialized),
+      orgLogin,
+      syncedAt: serialized?.syncedAt ?? null,
+      overview: serialized?.overview ?? null,
+    },
+  })
+})
+
+export const getGitHubStatsRepos = asyncHandler(async (req: AuthedRequest, res: Response) => {
+  const workspaceId = String((req as any).validatedQuery?.workspaceId ?? req.query.workspaceId ?? '')
+  const { orgLogin, snapshot } = await githubStatsService.getSnapshot(workspaceId, req.user!.sub)
+  if (!orgLogin) {
+    res.json({
+      success: true,
+      data: { linkedOrg: false, synced: false, orgLogin: null, syncedAt: null, repositories: [] },
+    })
+    return
+  }
+  const serialized = serializeSnapshot(snapshot)
+  res.json({
+    success: true,
+    data: {
+      linkedOrg: true,
+      synced: Boolean(serialized),
+      orgLogin,
+      syncedAt: serialized?.syncedAt ?? null,
+      repositories: serialized?.repos ?? [],
+    },
+  })
+})
+
+export const getGitHubStatsPulse = asyncHandler(async (req: AuthedRequest, res: Response) => {
+  const q = (req as any).validatedQuery as { workspaceId: string; days: number } | undefined
+  const workspaceId = String(q?.workspaceId ?? req.query.workspaceId ?? '')
+  const days = Number(q?.days ?? req.query.days) === 30 ? 30 : 7
+  const { orgLogin, snapshot } = await githubStatsService.getSnapshot(workspaceId, req.user!.sub)
+  if (!orgLogin) {
+    res.json({
+      success: true,
+      data: {
+        linkedOrg: false,
+        synced: false,
+        orgLogin: null,
+        syncedAt: null,
+        days,
+        pulse: { commits: 0, prsMerged: 0, issuesClosed: 0, series: [] },
+      },
+    })
+    return
+  }
+  const serialized = serializeSnapshot(snapshot)
+  const pulse = days === 30 ? serialized?.pulse30 : serialized?.pulse7
+  res.json({
+    success: true,
+    data: {
+      linkedOrg: true,
+      synced: Boolean(serialized),
+      orgLogin,
+      syncedAt: serialized?.syncedAt ?? null,
+      days,
+      pulse: pulse ?? { commits: 0, prsMerged: 0, issuesClosed: 0, series: [] },
     },
   })
 })

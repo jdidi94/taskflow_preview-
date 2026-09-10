@@ -9,7 +9,12 @@ build/
 # Env
 .env
 .env.local
+.env.production
 .env.*.local
+!.env.example
+!.env.production.example
+!**/.env.example
+!**/.env.production.example
 
 # Logs / coverage
 logs/
@@ -33,3 +38,4 @@ temp/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+.cursor/

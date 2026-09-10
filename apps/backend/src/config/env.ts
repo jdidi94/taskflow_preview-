@@ -19,6 +19,7 @@ const envSchema = z.object({
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),
+  CONTACT_TO: z.string().default(''),
   GOOGLE_CLIENT_ID: z.string().default(''),
   GOOGLE_CLIENT_SECRET: z.string().default(''),
   GOOGLE_CALLBACK_URL: z.string().default('http://localhost:3001/api/auth/google/callback'),
@@ -26,18 +27,25 @@ const envSchema = z.object({
     .string()
     .default('http://localhost:5173/auth/drive-link-callback'),
   GOOGLE_API_GEMINI_API_KEY: z.string().default(''),
-  GOOGLE_GEMINI_MODEL: z.string().default('gemini-1.5-flash'),
+  GOOGLE_GEMINI_MODEL: z.string().default('gemini-3.1-flash-lite'),
   GITHUB_CLIENT_ID: z.string().default(''),
   GITHUB_CLIENT_SECRET: z.string().default(''),
   GITHUB_CALLBACK_URL: z.string().default('http://localhost:3001/api/auth/github/callback'),
+  GITHUB_LINK_CLIENT_ID: z.string().default(''),
+  GITHUB_LINK_CLIENT_SECRET: z.string().default(''),
+  GITHUB_LINK_CALLBACK_URL: z
+    .string()
+    .default('http://localhost:5173/auth/github-link-callback'),
   OPENAI_API_KEY: z.string().default(''),
   OPENAI_MODEL: z.string().default('gpt-4o-mini'),
+  GROQ_API_KEY: z.string().default(''),
+  GROQ_MODEL: z.string().default('llama-3.1-8b-instant'),
   ANTHROPIC_API_KEY: z.string().default(''),
   ANTHROPIC_MODEL: z.string().default('claude-3-5-sonnet-latest'),
   AZURE_OPENAI_API_KEY: z.string().default(''),
   AZURE_OPENAI_ENDPOINT: z.string().default(''),
   AZURE_OPENAI_DEPLOYMENT: z.string().default(''),
-  DEFAULT_AI_PROVIDER: z.enum(['openai', 'google', 'anthropic', 'azure']).default('google'),
+  DEFAULT_AI_PROVIDER: z.enum(['openai', 'google', 'anthropic', 'azure', 'groq']).default('google'),
   STRIPE_SECRET_KEY: z.string().default(''),
   STRIPE_WEBHOOK_SECRET: z.string().default(''),
   LOG_LEVEL: z.string().default('info'),
@@ -52,9 +60,38 @@ if (!parsed.success) {
 
 const data = parsed.data
 
-if (data.NODE_ENV === 'production' && data.JWT_SECRET === 'dev-only-change-me') {
-  console.error('JWT_SECRET must be set to a strong value in production')
-  process.exit(1)
+if (data.NODE_ENV === 'production') {
+  const weakJwt =
+    data.JWT_SECRET === 'dev-only-change-me' ||
+    /^change-me/i.test(data.JWT_SECRET) ||
+    data.JWT_SECRET.length < 32
+  const weakEncryption =
+    data.ENCRYPTION_KEY === 'dev-only-encryption-key' ||
+    /^change-me/i.test(data.ENCRYPTION_KEY) ||
+    data.ENCRYPTION_KEY.length < 32
+  if (weakJwt) {
+    console.error('JWT_SECRET must be a strong value (≥32 chars) in production')
+    process.exit(1)
+  }
+  if (weakEncryption) {
+    console.error('ENCRYPTION_KEY must be a strong value (≥32 chars) in production')
+    process.exit(1)
+  }
+}
+
+function filledEnv(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === '...' || /^change-me/i.test(trimmed)) return ''
+  return trimmed
+}
+
+const githubLinkClientId = filledEnv(data.GITHUB_LINK_CLIENT_ID)
+const githubLinkClientSecret = filledEnv(data.GITHUB_LINK_CLIENT_SECRET)
+
+if (githubLinkClientId && !githubLinkClientSecret && data.NODE_ENV !== 'test') {
+  console.warn(
+    'GITHUB_LINK_CLIENT_SECRET is missing or still a placeholder — workspace GitHub org/repo linking will fail until it is set',
+  )
 }
 
 export const env = {
@@ -63,6 +100,11 @@ export const env = {
   isDev: data.NODE_ENV === 'development',
   isTest: data.NODE_ENV === 'test',
   isProd: data.NODE_ENV === 'production',
+  githubLinkClientId: githubLinkClientId || data.GITHUB_CLIENT_ID,
+  githubLinkClientSecret: githubLinkClientId ? githubLinkClientSecret : data.GITHUB_CLIENT_SECRET,
+  githubLinkCallbackUrl:
+    filledEnv(data.GITHUB_LINK_CALLBACK_URL) ||
+    `${data.FRONTEND_URL.replace(/\/$/, '')}/auth/github-link-callback`,
 }
 
 export type Env = typeof env

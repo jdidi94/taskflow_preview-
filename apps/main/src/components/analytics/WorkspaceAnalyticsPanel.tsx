@@ -40,7 +40,7 @@ export function WorkspaceAnalyticsPanel({ workspaceId }: Props) {
       )
     } catch (err) {
       setExportError(
-        err instanceof Error ? err.message : getApiErrorMessage(err, t('analytics.exportError')),
+        getApiErrorMessage(err, t('analytics.exportError')),
       )
     }
   }
@@ -56,7 +56,7 @@ export function WorkspaceAnalyticsPanel({ workspaceId }: Props) {
       )
     } catch (err) {
       setExportError(
-        err instanceof Error ? err.message : getApiErrorMessage(err, t('analytics.exportError')),
+        getApiErrorMessage(err, t('analytics.exportError')),
       )
     }
   }

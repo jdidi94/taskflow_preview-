@@ -95,6 +95,7 @@ export const list = asyncHandler(async (req: any, res: Response) => {
     .populate('likedBy', 'name displayName')
     .populate('viewedBy', 'name displayName')
 
+  res.setHeader('Cache-Control', 'public, max-age=30')
   res.json({ success: true, data: { templates: items } })
 })
 

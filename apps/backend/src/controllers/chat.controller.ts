@@ -35,9 +35,9 @@ function chatNamespace(req: AuthedRequest): any {
   return io?.of('/chat')
 }
 
-function emitChatEvent(req: AuthedRequest, event: string, payload: Record<string, unknown>) {
+function emitAdminEvent(req: AuthedRequest, event: string, payload: Record<string, unknown>) {
   const namespace = chatNamespace(req)
-  namespace?.emit(event, payload)
+  namespace?.to('admins').emit(event, payload)
 }
 
 function emitChatRoomEvent(
@@ -212,7 +212,7 @@ export const startChat = asyncHandler(async (req: AuthedRequest, res: Response) 
     category: category ?? 'general',
   })
 
-  emitChatEvent(req, 'admin:new-chat-request', {
+  emitAdminEvent(req, 'admin:new-chat-request', {
     chatId: chat._id,
     user: {
       _id: starter.id,
@@ -273,6 +273,7 @@ export const sendMessage = asyncHandler(async (req: AuthedRequest, res: Response
   const message = chat.messages[chat.messages.length - 1]
   emitChatRoomEvent(req, `chat:${chatId}`, 'chat:message', { chatId, message })
   emitChatRoomEvent(req, `chat:${chat.chatId}`, 'chat:message', { chatId, message })
+  emitAdminEvent(req, 'chat:message', { chatId, message })
 
   res.json({ success: true, data: { message } })
 })
@@ -373,7 +374,7 @@ export const acceptChat = asyncHandler(async (req: AuthedRequest, res: Response)
   chat.assignedTo = new Types.ObjectId(req.user!.sub)
   await chat.save()
 
-  emitChatEvent(req, 'admin:chat-accepted', { chatId, adminId: req.user!.sub })
+  emitAdminEvent(req, 'admin:chat-accepted', { chatId, adminId: req.user!.sub })
   emitChatRoomEvent(req, `chat:${chatId}`, 'chat:assigned', { chatId, adminId: req.user!.sub })
 
   res.json({ success: true, data: { chat } })
@@ -413,6 +414,7 @@ export const sendAdminMessage = asyncHandler(async (req: AuthedRequest, res: Res
   const message = chat.messages[chat.messages.length - 1]
   emitChatRoomEvent(req, `chat:${chatId}`, 'chat:message', { chatId, message })
   emitChatRoomEvent(req, `chat:${chat.chatId}`, 'chat:message', { chatId, message })
+  emitAdminEvent(req, 'chat:message', { chatId, message })
 
   res.json({ success: true, data: { message } })
 })
@@ -426,7 +428,7 @@ export const updateChatStatus = asyncHandler(async (req: AuthedRequest, res: Res
   if (reason) chat.notes = reason
   await chat.save()
 
-  emitChatEvent(req, 'chat:status-updated', {
+  emitAdminEvent(req, 'chat:status-updated', {
     chatId,
     status,
     updatedBy: req.user!.sub,
@@ -451,7 +453,7 @@ export const closeChat = asyncHandler(async (req: AuthedRequest, res: Response) 
   if (reason) chat.notes = reason
   await chat.save()
 
-  emitChatEvent(req, 'chat:closed', { chatId, reason })
+  emitAdminEvent(req, 'chat:closed', { chatId, reason })
   emitChatRoomEvent(req, `chat:${chatId}`, 'chat:status-updated', {
     chatId,
     status: 'closed',

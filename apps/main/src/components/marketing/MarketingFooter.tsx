@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 
+import { BrandLogo } from '@/components/common/BrandLogo'
 import { useI18n } from '@/i18n'
 
 export function MarketingFooter() {
@@ -11,7 +12,7 @@ export function MarketingFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 sm:px-6">
         <div className="flex flex-col gap-6 sm:flex-row sm:justify-between">
           <div>
-            <p className="font-display text-lg font-semibold text-primary">{t('common.brand')}</p>
+            <BrandLogo variant="wordmark" className="h-12 w-12" />
             <p className="mt-1 text-sm text-muted-foreground">{t('landing.footerCopy', { year })}</p>
           </div>
           <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-3">

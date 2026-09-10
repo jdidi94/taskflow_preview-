@@ -1,14 +1,17 @@
 import crypto from 'node:crypto'
+import os from 'node:os'
 import type { Response } from 'express'
 import mongoose from 'mongoose'
 
 import type { AuthedRequest } from '../middlewares/auth.js'
 import { Admin } from '../models/Admin.js'
-import { Space } from '../models/Space.js'
-import { Task } from '../models/Task.js'
 import { Template } from '../models/Template.js'
 import { User, type UserSystemRole } from '../models/User.js'
-import { Workspace } from '../models/Workspace.js'
+import {
+  buildAdminAnalyticsSnapshot,
+  type AdminAnalyticsTimeRange,
+} from '../services/adminAnalytics.service.js'
+import { recordAdminAudit } from '../services/adminAudit.service.js'
 import { twoFactorAuthService } from '../services/twoFactorAuth.service.js'
 import { AppError } from '../utils/AppError.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
@@ -200,6 +203,16 @@ export const createUser = asyncHandler(async (req: AuthedRequest, res: Response)
     systemRole: role,
   })
 
+  void recordAdminAudit(req, {
+    action: 'user.create',
+    targetType: 'user',
+    targetId: String(user._id),
+    targetLabel: user.email,
+    summary: `Created app user ${user.email}`,
+    notify: true,
+    href: '/users',
+  })
+
   res.status(201).json({
     success: true,
     data: { user: { id: user._id, email: user.email, systemRole: user.systemRole } },
@@ -224,6 +237,15 @@ export const updateUser = asyncHandler(async (req: AuthedRequest, res: Response)
   )
   if (!user) throw new AppError('User not found', 404)
 
+  void recordAdminAudit(req, {
+    action: 'user.update',
+    targetType: 'user',
+    targetId: String(user._id),
+    targetLabel: user.email,
+    summary: `Updated app user ${user.email}`,
+    href: '/users',
+  })
+
   res.json({ success: true, data: { user: publicUser(user) } })
 })
 
@@ -231,6 +253,16 @@ export const deactivateUser = asyncHandler(async (req: AuthedRequest, res: Respo
   const user = await getUserOr404(param(req, 'userId'))
   user.isActive = false
   await user.save()
+  void recordAdminAudit(req, {
+    action: 'user.deactivate',
+    targetType: 'user',
+    targetId: String(user._id),
+    targetLabel: user.email,
+    summary: `Deactivated app user ${user.email}`,
+    notify: true,
+    notifyPriority: 'high',
+    href: '/users',
+  })
   res.json({ success: true, data: { user: publicUser(user) } })
 })
 
@@ -238,6 +270,15 @@ export const activateUser = asyncHandler(async (req: AuthedRequest, res: Respons
   const user = await getUserOr404(param(req, 'userId'))
   user.isActive = true
   await user.save()
+  void recordAdminAudit(req, {
+    action: 'user.activate',
+    targetType: 'user',
+    targetId: String(user._id),
+    targetLabel: user.email,
+    summary: `Activated app user ${user.email}`,
+    notify: true,
+    href: '/users',
+  })
   res.json({ success: true, data: { user: publicUser(user) } })
 })
 
@@ -249,6 +290,17 @@ export const resetUserPassword = asyncHandler(async (req: AuthedRequest, res: Re
   const tempPassword = `${crypto.randomBytes(4).toString('hex')}Aa1!`
   user.password = tempPassword
   await user.save()
+
+  void recordAdminAudit(req, {
+    action: 'user.reset_password',
+    targetType: 'user',
+    targetId: String(user._id),
+    targetLabel: user.email,
+    summary: `Reset password for ${user.email}`,
+    notify: true,
+    notifyPriority: 'high',
+    href: '/users',
+  })
 
   res.json({
     success: true,
@@ -265,6 +317,18 @@ export const changeUserRole = asyncHandler(async (req: AuthedRequest, res: Respo
 
   user.systemRole = newRole
   await user.save()
+
+  void recordAdminAudit(req, {
+    action: 'user.role',
+    targetType: 'user',
+    targetId: String(user._id),
+    targetLabel: user.email,
+    summary: `Changed role for ${user.email} to ${newRole}`,
+    metadata: { newRole },
+    notify: true,
+    notifyPriority: 'high',
+    href: '/users',
+  })
 
   res.json({
     success: true,
@@ -294,6 +358,18 @@ export const addUserWithEmail = asyncHandler(async (req: AuthedRequest, res: Res
     role,
     isActive: true,
     createdBy: req.user!.sub,
+  })
+
+  void recordAdminAudit(req, {
+    action: 'admin.create',
+    targetType: 'admin',
+    targetId: String(adminUser._id),
+    targetLabel: adminUser.userEmail,
+    summary: `Created staff admin ${adminUser.userEmail}`,
+    metadata: { role },
+    notify: true,
+    notifyPriority: 'high',
+    href: '/users',
   })
 
   res.status(201).json({
@@ -328,6 +404,18 @@ export const addAdminUser = asyncHandler(async (req: AuthedRequest, res: Respons
     role,
     isActive: true,
     createdBy: req.user!.sub,
+  })
+
+  void recordAdminAudit(req, {
+    action: 'admin.create',
+    targetType: 'admin',
+    targetId: String(admin._id),
+    targetLabel: admin.userEmail,
+    summary: `Created staff admin ${admin.userEmail}`,
+    metadata: { role },
+    notify: true,
+    notifyPriority: 'high',
+    href: '/settings',
   })
 
   res.status(201).json({
@@ -472,6 +560,11 @@ export const completeLoginWith2FA = asyncHandler(async (req: AuthedRequest, res:
       usedBackupCode: usedBackup,
     },
   })
+})
+
+export const getSetupStatus = asyncHandler(async (_req: AuthedRequest, res: Response) => {
+  const count = await Admin.countDocuments()
+  res.json({ success: true, data: { needsSetup: count === 0 } })
 })
 
 export const setupFirstAdmin = asyncHandler(async (req: AuthedRequest, res: Response) => {
@@ -678,61 +771,26 @@ export const generateRecoveryToken = asyncHandler(async (req: AuthedRequest, res
   res.json({ success: true, data: { recoveryToken: token, expiresAt } })
 })
 
-async function buildAdminAnalyticsSnapshot() {
-  const [totalUsers, activeUsers, totalWorkspaces, totalSpaces, totalTasks, completedTasks, pendingTasks, inProgressTasks] =
-    await Promise.all([
-      User.countDocuments(),
-      User.countDocuments({
-        isActive: true,
-        lastLogin: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-      }),
-      Workspace.countDocuments({ isActive: true }),
-      Space.countDocuments({ isActive: true }),
-      Task.countDocuments({ archived: false }),
-      Task.countDocuments({ archived: false, status: 'done' }),
-      Task.countDocuments({ archived: false, status: 'todo' }),
-      Task.countDocuments({ archived: false, status: 'in_progress' }),
-    ])
-
-  const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
-
-  return {
-    totalUsers,
-    activeUsers: {
-      daily: activeUsers,
-      weekly: Math.floor(totalUsers * 0.7),
-      monthly: Math.floor(totalUsers * 0.9),
-    },
-    activeProjects: totalSpaces,
-    totalWorkspaces,
-    completionRate: Math.round(completionRate * 100) / 100,
-    taskCompletionData: {
-      pending: pendingTasks,
-      inProgress: inProgressTasks,
-      completed: completedTasks,
-    },
-    systemPerformance: {
-      serverUptime: process.uptime(),
-      apiResponseTime: 0,
-      databaseHealth: mongoose.connection.readyState === 1 ? 100 : 0,
-    },
-  }
-}
-
-export const getAnalytics = asyncHandler(async (_req: AuthedRequest, res: Response) => {
-  const analyticsData = await buildAdminAnalyticsSnapshot()
+export const getAnalytics = asyncHandler(async (req: AuthedRequest, res: Response) => {
+  const q = (req as any).validatedQuery ?? req.query
+  const timeRange = ((q as any).timeRange as AdminAnalyticsTimeRange | undefined) ?? '6-months'
+  const analyticsData = await buildAdminAnalyticsSnapshot(timeRange)
   res.json({ success: true, data: analyticsData })
 })
 
 export const exportAnalytics = asyncHandler(async (req: AuthedRequest, res: Response) => {
   const q = (req as any).validatedQuery ?? req.query
   const format = ((q as any).format as 'json' | 'csv' | undefined) ?? 'json'
-  const analyticsData = await buildAdminAnalyticsSnapshot()
+  const timeRange = ((q as any).timeRange as AdminAnalyticsTimeRange | undefined) ?? '6-months'
+  const analyticsData = await buildAdminAnalyticsSnapshot(timeRange)
 
   if (format === 'csv') {
     const headers = [
+      'timeRange',
       'totalUsers',
       'dailyActiveUsers',
+      'weeklyActiveUsers',
+      'monthlyActiveUsers',
       'activeProjects',
       'totalWorkspaces',
       'completionRate',
@@ -741,8 +799,11 @@ export const exportAnalytics = asyncHandler(async (req: AuthedRequest, res: Resp
       'completedTasks',
     ]
     const row = [
+      analyticsData.timeRange,
       analyticsData.totalUsers,
       analyticsData.activeUsers.daily,
+      analyticsData.activeUsers.weekly,
+      analyticsData.activeUsers.monthly,
       analyticsData.activeProjects,
       analyticsData.totalWorkspaces,
       analyticsData.completionRate,
@@ -750,29 +811,75 @@ export const exportAnalytics = asyncHandler(async (req: AuthedRequest, res: Resp
       analyticsData.taskCompletionData.inProgress,
       analyticsData.taskCompletionData.completed,
     ]
+    const seriesHeader = ['series', 'date', 'signups', 'projects']
+    const seriesRows = analyticsData.userGrowthData.map((point, index) =>
+      [
+        'series',
+        point.date,
+        point.signups,
+        analyticsData.projectCreationTrends[index]?.projects ?? 0,
+      ].join(','),
+    )
     res.setHeader('Content-Type', 'text/csv')
-    res.setHeader('Content-Disposition', 'attachment; filename=admin-analytics.csv')
-    res.status(200).send([headers.join(','), row.join(',')].join('\n'))
+    res.setHeader('Content-Disposition', `attachment; filename=admin-analytics-${timeRange}.csv`)
+    res.status(200).send(
+      [[headers.join(','), row.join(',')].join('\n'), seriesHeader.join(','), ...seriesRows].join('\n'),
+    )
     return
   }
 
   res.json({ success: true, data: analyticsData })
 })
 
+function roundMb(bytes: number) {
+  return Math.round((bytes / 1024 / 1024) * 100) / 100
+}
+
 export const getSystemHealth = asyncHandler(async (_req: AuthedRequest, res: Response) => {
   const mem = process.memoryUsage()
+  const totalMem = os.totalmem()
+  const freeMem = os.freemem()
+  const usedMem = totalMem - freeMem
+  const connected = mongoose.connection.readyState === 1
+  const pingStarted = Date.now()
+  let pingMs: number | null = null
+  let dbError: string | null = null
+
+  try {
+    if (connected && mongoose.connection.db) {
+      await mongoose.connection.db.admin().ping()
+      pingMs = Date.now() - pingStarted
+    }
+  } catch (error) {
+    pingMs = Date.now() - pingStarted
+    dbError = error instanceof Error ? error.message : 'Database ping failed'
+  }
+
+  const healthy = connected && !dbError
+
   res.json({
     success: true,
     data: {
+      status: healthy ? 'healthy' : 'degraded',
       systemPerformance: {
         serverUptime: process.uptime(),
-        memoryRssMb: Math.round((mem.rss / 1024 / 1024) * 100) / 100,
-        memoryHeapUsedMb: Math.round((mem.heapUsed / 1024 / 1024) * 100) / 100,
+        memoryRssMb: roundMb(mem.rss),
+        memoryHeapUsedMb: roundMb(mem.heapUsed),
+        memoryHeapTotalMb: roundMb(mem.heapTotal),
+        memoryTotalMb: roundMb(totalMem),
+        memoryFreeMb: roundMb(freeMem),
+        memoryUsedPct: totalMem > 0 ? Math.round((usedMem / totalMem) * 1000) / 10 : 0,
+        cpuCores: os.cpus().length,
+        loadAverage: os.loadavg(),
+        platform: os.platform(),
+        nodeVersion: process.version,
         nodeEnv: env.NODE_ENV,
       },
       database: {
-        connection: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+        connection: connected ? 'Connected' : 'Disconnected',
         readyState: mongoose.connection.readyState,
+        pingMs,
+        error: dbError,
       },
       features: {
         stripeConfigured: Boolean(env.STRIPE_SECRET_KEY),
@@ -831,6 +938,15 @@ export const createProjectTemplate = asyncHandler(async (req: AuthedRequest, res
     status: 'active',
   })
 
+  void recordAdminAudit(req, {
+    action: 'template.create',
+    targetType: 'template',
+    targetId: String(template._id),
+    targetLabel: template.name,
+    summary: `Created template ${template.name}`,
+    href: '/templates',
+  })
+
   res.status(201).json({ success: true, data: { template: mapAdminTemplate(template) } })
 })
 
@@ -847,13 +963,33 @@ export const updateProjectTemplate = asyncHandler(async (req: AuthedRequest, res
   if (body.isPublic !== undefined) template.isPublic = body.isPublic as boolean
 
   await template.save()
+  void recordAdminAudit(req, {
+    action: 'template.update',
+    targetType: 'template',
+    targetId: String(template._id),
+    targetLabel: template.name,
+    summary: `Updated template ${template.name}`,
+    href: '/templates',
+  })
   res.json({ success: true, data: { template: mapAdminTemplate(template) } })
 })
 
 export const deleteProjectTemplate = asyncHandler(async (req: AuthedRequest, res: Response) => {
   const template = await Template.findById(param(req, 'templateId'))
   if (!template) throw new AppError('Template not found', 404)
+  const name = template.name
+  const id = String(template._id)
   await template.deleteOne()
+  void recordAdminAudit(req, {
+    action: 'template.delete',
+    targetType: 'template',
+    targetId: id,
+    targetLabel: name,
+    summary: `Deleted template ${name}`,
+    notify: true,
+    notifyPriority: 'high',
+    href: '/templates',
+  })
   res.json({ success: true })
 })
 

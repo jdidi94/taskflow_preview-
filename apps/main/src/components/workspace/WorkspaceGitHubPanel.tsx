@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Loading } from '@taskflow/ui'
 import { Github, Link2, RefreshCw, Unlink } from 'lucide-react'
 
+import { GitHubOverviewCard } from '@/components/workspace/GitHubOverviewCard'
+import { GitHubPulseChart } from '@/components/workspace/GitHubPulseChart'
+import { GitHubReposTable } from '@/components/workspace/GitHubReposTable'
 import { useI18n } from '@/i18n'
 import { getApiErrorMessage } from '@/lib/apiError'
 import {
@@ -98,7 +101,7 @@ export function WorkspaceGitHubPanel({ workspace, canManage }: Props) {
         }, 800)
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : getApiErrorMessage(err, t('github.linkError')))
+      setError(getApiErrorMessage(err, t('github.linkError')))
     } finally {
       setBusy(false)
     }
@@ -107,7 +110,7 @@ export function WorkspaceGitHubPanel({ workspace, canManage }: Props) {
   async function onSync() {
     setError(null)
     try {
-      await syncGitHub().unwrap()
+      await syncGitHub({ workspaceId: workspace.id }).unwrap()
       await refetch()
     } catch (err) {
       setError(getApiErrorMessage(err, t('github.syncError')))
@@ -240,8 +243,9 @@ export function WorkspaceGitHubPanel({ workspace, canManage }: Props) {
                     variant="outline"
                     size="sm"
                     className="gap-1.5"
-                    disabled={actionBusy}
+                    disabled={actionBusy || !linkedOrg}
                     onClick={() => void onSync()}
+                    title={!linkedOrg ? t('github.syncNeedsOrg') : undefined}
                   >
                     <RefreshCw className="h-3.5 w-3.5" aria-hidden />
                     {syncing ? t('github.syncing') : t('github.sync')}
@@ -364,6 +368,15 @@ export function WorkspaceGitHubPanel({ workspace, canManage }: Props) {
                     ) : null}
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+
+            {linked && linkedOrg ? (
+              <div className="flex flex-col gap-4 border-t border-border/60 pt-4">
+                <p className="text-sm font-medium">{t('github.statsSectionTitle')}</p>
+                <GitHubOverviewCard workspaceId={workspace.id} enabled />
+                <GitHubPulseChart workspaceId={workspace.id} enabled />
+                <GitHubReposTable workspaceId={workspace.id} enabled />
               </div>
             ) : null}
           </>

@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 import type { ApiSuccess, Workspace, WorkspaceMembersPayload } from '@/types/domain'
 
 export type WorkspaceRules = {
@@ -12,6 +12,7 @@ export type WorkspaceRules = {
 export const workspacesApi = createApi({
   reducerPath: 'workspacesApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Workspaces', 'Workspace', 'WorkspaceMembers', 'WorkspaceRules'],
   endpoints: (builder) => ({
     listWorkspaces: builder.query<ApiSuccess<Workspace[]>, void>({

@@ -58,6 +58,12 @@ export const deleteTask = asyncHandler(async (req: AuthedRequest, res: Response)
   res.json({ success: true })
 })
 
+export const restoreTask = asyncHandler(async (req: AuthedRequest, res: Response) => {
+  const data = await taskService.restore(req.user!.sub, param(req, 'id'), req.body)
+  emitBoardTaskEvent(req, 'task:created', data)
+  res.json({ success: true, data })
+})
+
 export const bulkUpdateTasks = asyncHandler(async (req: AuthedRequest, res: Response) => {
   const data = await taskService.bulkUpdate(req.user!.sub, req.body)
   for (const task of data) {

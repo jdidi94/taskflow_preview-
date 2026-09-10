@@ -1,17 +1,18 @@
 import mongoose from 'mongoose'
 import { env } from './env.js'
+import { logger } from './logger.js'
 
 export async function connectDB(): Promise<typeof mongoose> {
   mongoose.set('strictQuery', true)
 
   try {
-    const conn = await mongoose.connect(env.DATABASE_URL, {
+    const conn = await mongoose.connect(process.env.DATABASE_URL || env.DATABASE_URL, {
       serverSelectionTimeoutMS: 5000,
     })
-    console.log(`MongoDB connected: ${conn.connection.host}/${conn.connection.name}`)
+    logger.info(`MongoDB connected: ${conn.connection.host}/${conn.connection.name}`)
     return conn
   } catch (error) {
-    console.error('Database connection error:', error)
+    logger.error({ err: error }, 'Database connection error')
     throw error
   }
 }

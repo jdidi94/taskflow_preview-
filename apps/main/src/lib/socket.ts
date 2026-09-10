@@ -4,15 +4,6 @@ import { getAccessToken } from '@/lib/authToken'
 
 export type SocketNamespaceName = '/board' | '/notifications' | '/chat' | '/ai' | '/workspace'
 
-export type SocketLogEntry = {
-  id: string
-  at: string
-  namespace: SocketNamespaceName | string
-  kind: 'connect' | 'disconnect' | 'connect_error' | 'error' | 'emit' | 'event' | 'info'
-  message: string
-  data?: unknown
-}
-
 export type SocketNamespaceStatus = {
   namespace: SocketNamespaceName
   connected: boolean
@@ -20,9 +11,7 @@ export type SocketNamespaceStatus = {
   lastError: string | null
 }
 
-const MAX_LOGS = 80
 const listeners = new Set<() => void>()
-const logs: SocketLogEntry[] = []
 const statusByNs: Record<SocketNamespaceName, SocketNamespaceStatus> = {
   '/board': { namespace: '/board', connected: false, socketId: null, lastError: null },
   '/notifications': {
@@ -48,38 +37,13 @@ function notify() {
 
 export function subscribeSocketDiagnostics(listener: () => void) {
   listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-export function getSocketLogs(): SocketLogEntry[] {
-  return [...logs]
+  return () => {
+    listeners.delete(listener)
+  }
 }
 
 export function getSocketStatuses(): SocketNamespaceStatus[] {
   return Object.values(statusByNs)
-}
-
-export function clearSocketLogs() {
-  logs.length = 0
-  notify()
-}
-
-export function pushSocketLog(
-  namespace: string,
-  kind: SocketLogEntry['kind'],
-  message: string,
-  data?: unknown,
-) {
-  logs.unshift({
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    at: new Date().toISOString(),
-    namespace,
-    kind,
-    message,
-    data,
-  })
-  if (logs.length > MAX_LOGS) logs.length = MAX_LOGS
-  notify()
 }
 
 function socketBaseUrl() {
@@ -104,18 +68,15 @@ function attachDiagnostics(socket: Socket, namespace: SocketNamespaceName) {
 
   socket.on('connect', () => {
     setStatus({ connected: true, socketId: socket.id ?? null, lastError: null })
-    pushSocketLog(namespace, 'connect', `Connected (${socket.id ?? 'no-id'})`)
   })
 
-  socket.on('disconnect', (reason) => {
+  socket.on('disconnect', () => {
     setStatus({ connected: false, socketId: null })
-    pushSocketLog(namespace, 'disconnect', `Disconnected: ${reason}`)
   })
 
   socket.on('connect_error', (err) => {
     const message = err?.message || 'Connection failed'
     setStatus({ connected: false, lastError: message })
-    pushSocketLog(namespace, 'connect_error', message)
   })
 
   socket.on('error', (payload) => {
@@ -124,7 +85,6 @@ function attachDiagnostics(socket: Socket, namespace: SocketNamespaceName) {
         ? String((payload as { message: unknown }).message)
         : 'Socket error'
     setStatus({ lastError: message })
-    pushSocketLog(namespace, 'error', message, payload)
   })
 }
 
@@ -151,7 +111,6 @@ function connectNamespace(existing: Socket | null, namespace: SocketNamespaceNam
     autoConnect: true,
   })
   attachDiagnostics(socket, namespace)
-  pushSocketLog(namespace, 'info', 'Socket instance created')
   return socket
 }
 
@@ -225,49 +184,8 @@ export function reconnectAllSockets() {
         if (token) socket.auth = { token }
         socket.connect()
       }
-    } catch (err) {
-      pushSocketLog(
-        'client',
-        'error',
-        err instanceof Error ? err.message : 'Failed to reconnect namespace',
-      )
+    } catch {
+      // ignore — namespace unavailable until auth/token ready
     }
-  }
-}
-
-/** Soft tap of namespaces so diagnostics can show status without visiting each feature. */
-export function ensureDiagnosticSockets() {
-  try {
-    getBoardSocket()
-  } catch (err) {
-    pushSocketLog('/board', 'error', err instanceof Error ? err.message : 'Board socket unavailable')
-  }
-  try {
-    getNotificationSocket()
-  } catch (err) {
-    pushSocketLog(
-      '/notifications',
-      'error',
-      err instanceof Error ? err.message : 'Notifications socket unavailable',
-    )
-  }
-  try {
-    getChatSocket()
-  } catch (err) {
-    pushSocketLog('/chat', 'error', err instanceof Error ? err.message : 'Chat socket unavailable')
-  }
-  try {
-    getAiSocket()
-  } catch (err) {
-    pushSocketLog('/ai', 'error', err instanceof Error ? err.message : 'AI socket unavailable')
-  }
-  try {
-    getWorkspaceSocket()
-  } catch (err) {
-    pushSocketLog(
-      '/workspace',
-      'error',
-      err instanceof Error ? err.message : 'Workspace socket unavailable',
-    )
   }
 }

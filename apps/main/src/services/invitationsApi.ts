@@ -1,6 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
+import { workspacesApi } from '@/services/workspacesApi'
 
 export type Invitation = {
   id: string
@@ -45,6 +46,7 @@ function asList(data: unknown): Invitation[] {
 export const invitationsApi = createApi({
   reducerPath: 'invitationsApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Invitations'],
   endpoints: (builder) => ({
     listPending: builder.query<ApiSuccess<Invitation[]>, void>({
@@ -83,6 +85,14 @@ export const invitationsApi = createApi({
         method: 'POST',
       }),
       invalidatesTags: [{ type: 'Invitations', id: 'PENDING' }],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled
+          dispatch(workspacesApi.util.invalidateTags([{ type: 'Workspaces', id: 'LIST' }]))
+        } catch {
+          /* keep pending list until user retries */
+        }
+      },
     }),
     declineByToken: builder.mutation<ApiSuccess<unknown>, { token: string }>({
       query: ({ token }) => ({
@@ -97,6 +107,14 @@ export const invitationsApi = createApi({
         method: 'POST',
       }),
       invalidatesTags: [{ type: 'Invitations', id: 'PENDING' }],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled
+          dispatch(workspacesApi.util.invalidateTags([{ type: 'Workspaces', id: 'LIST' }]))
+        } catch {
+          /* keep pending list until user retries */
+        }
+      },
     }),
     declineById: builder.mutation<ApiSuccess<unknown>, { invitationId: string }>({
       query: ({ invitationId }) => ({

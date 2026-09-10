@@ -41,7 +41,7 @@ export function SpaceAnalyticsPanel({ spaceId }: Props) {
       await downloadSpaceAnalyticsCsv(spaceId, period)
     } catch (err) {
       setExportError(
-        err instanceof Error ? err.message : getApiErrorMessage(err, t('analytics.exportError')),
+        getApiErrorMessage(err, t('analytics.exportError')),
       )
     } finally {
       setExporting(false)
@@ -67,7 +67,7 @@ export function SpaceAnalyticsPanel({ spaceId }: Props) {
       )
     } catch (err) {
       setExportError(
-        err instanceof Error ? err.message : getApiErrorMessage(err, t('analytics.exportError')),
+        getApiErrorMessage(err, t('analytics.exportError')),
       )
     }
   }

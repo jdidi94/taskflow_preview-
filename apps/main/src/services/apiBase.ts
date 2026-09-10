@@ -9,8 +9,10 @@ type AuthAwareState = {
   }
 }
 
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || '/api'
+
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: '/api',
+  baseUrl: apiBaseUrl,
   prepareHeaders: (headers, { getState }) => {
     const state = getState() as AuthAwareState
     const token = state.auth?.token ?? getAccessToken()
@@ -25,3 +27,10 @@ export const baseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryE
   api,
   extraOptions,
 ) => rawBaseQuery(args, api, extraOptions)
+
+/** Shared RTK Query defaults — sockets/tags keep lists fresh; avoid focus thrash. */
+export const rtkQueryDefaults = {
+  keepUnusedDataFor: 60,
+  refetchOnFocus: false as const,
+  refetchOnReconnect: true as const,
+}

@@ -1,4 +1,10 @@
-import type { Task, TaskChecklistItem, TaskUserRef } from '@/types/domain'
+import type {
+  Task,
+  TaskChecklistItem,
+  TaskDependency,
+  TaskDependencyType,
+  TaskUserRef,
+} from '@/types/domain'
 
 export function assigneeId(value: string | TaskUserRef | null | undefined): string {
   if (!value) return ''
@@ -14,6 +20,26 @@ export function assigneeLabel(value: string | TaskUserRef | null | undefined): s
 
 export function taskAssigneeIds(task: Task | null | undefined): string[] {
   return (task?.assignees ?? []).map((a) => assigneeId(a)).filter(Boolean)
+}
+
+export function watcherIds(task: Task | null | undefined): string[] {
+  return (task?.watchers ?? []).map((value) => assigneeId(value)).filter(Boolean)
+}
+
+export function normalizeDependencies(raw: unknown): TaskDependency[] {
+  if (!Array.isArray(raw)) return []
+  const deps: TaskDependency[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const id = String(rec.id ?? rec._id ?? '')
+    const taskId = String(rec.taskId ?? rec.task ?? '')
+    const type = rec.type
+    if (!id || !taskId) continue
+    if (type !== 'blocks' && type !== 'blocked_by' && type !== 'related') continue
+    deps.push({ id, taskId, type: type as TaskDependencyType })
+  }
+  return deps
 }
 
 /** Convert HTML date (yyyy-mm-dd) ↔ API ISO datetime. */

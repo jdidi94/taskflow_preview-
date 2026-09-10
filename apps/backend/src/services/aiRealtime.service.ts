@@ -2,6 +2,7 @@ import { Types } from 'mongoose'
 
 import { generateAiText } from '../ai/provider-resolver.js'
 import { env } from '../config/env.js'
+import { logger } from '../config/logger.js'
 import { Board } from '../models/Board.js'
 import { Column } from '../models/Column.js'
 import { Task } from '../models/Task.js'
@@ -31,6 +32,52 @@ function tryParseJson<T>(text: string): T | null {
   }
 }
 
+/** Models often return suggestion objects; never use String(obj) → "[object Object]". */
+function suggestionToLabel(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (!value || typeof value !== 'object') return ''
+
+  const record = value as Record<string, unknown>
+  for (const key of ['title', 'text', 'prompt', 'label', 'message', 'summary', 'name', 'task']) {
+    const candidate = record[key]
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+  }
+
+  const title = typeof record.title === 'string' ? record.title.trim() : ''
+  const description =
+    typeof record.description === 'string'
+      ? record.description.trim()
+      : typeof record.detail === 'string'
+        ? record.detail.trim()
+        : ''
+  if (title && description) return `${title}: ${description}`
+  if (title) return title
+  if (description) return description
+  return ''
+}
+
+function normalizeSuggestionLabels(values: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(values)) return fallback
+  const labels = values.map(suggestionToLabel).filter(Boolean).slice(0, 4)
+  return labels.length > 0 ? labels : fallback
+}
+
+function toolCallSummary(item: {
+  name?: string
+  summary?: unknown
+  args?: Record<string, unknown>
+}): string {
+  if (typeof item.summary === 'string' && item.summary.trim()) {
+    return item.summary.trim().slice(0, 160)
+  }
+  const fromArgs = suggestionToLabel(item.args ?? {})
+  if (fromArgs) {
+    return `${item.name ?? 'tool'}: ${fromArgs}`.slice(0, 160)
+  }
+  return String(item.name ?? 'tool')
+}
+
 function normalizePriority(value: unknown): Priority {
   if (value === 'low' || value === 'medium' || value === 'high' || value === 'critical') return value
   if (value === 'urgent') return 'critical'
@@ -42,13 +89,18 @@ function cleanTitle(input: string) {
 }
 
 async function requestAiJson<T>(prompt: string, systemPrompt: string) {
-  const result = await generateAiText({
-    prompt,
-    systemPrompt,
-    json: true,
-  })
-  if (!result?.text) return null
-  return tryParseJson<T>(result.text)
+  try {
+    const result = await generateAiText({
+      prompt,
+      systemPrompt,
+      json: true,
+    })
+    if (!result?.text) return null
+    return tryParseJson<T>(result.text)
+  } catch (error) {
+    logger.error({ err: error }, 'requestAiJson failed')
+    return null
+  }
 }
 
 function fallbackBoardData(prompt: string, options: BoardGenerationOptions) {
@@ -275,6 +327,7 @@ export const aiRealtimeService = {
     return {
       models: {
         default: env.DEFAULT_AI_PROVIDER,
+        groq: env.GROQ_MODEL,
         openai: env.OPENAI_MODEL,
         google: env.GOOGLE_GEMINI_MODEL,
         anthropic: env.ANTHROPIC_MODEL,
@@ -604,14 +657,14 @@ export const aiRealtimeService = {
         .join('\n')
 
       const parsed = await requestAiJson<{
-        reply?: string
-        suggestions?: string[]
+        reply?: unknown
+        suggestions?: unknown
         intent?: string
         boardPrompt?: string | null
         toolCalls?: Array<{
           id?: string
           name?: string
-          summary?: string
+          summary?: unknown
           args?: Record<string, unknown>
         }>
       }>(
@@ -623,18 +676,21 @@ export const aiRealtimeService = {
                 `You are assisting in place: ${contextPack.label}.`,
                 'Use ONLY the place snapshot below. Prefer actionable, concise answers.',
                 'If the user asks to create/move/update tasks or comment, propose toolCalls (do not claim you already wrote).',
+                'When the user asks to draft next tasks / risk tasks, set intent to "draft" or "tools", list the task titles in reply as plain text, and propose create_task toolCalls.',
                 'Allowed tool names: create_task, move_task, update_task, add_comment.',
                 'create_task args: { title, columnId, description?, priority?, dueDate?, tags? }',
                 'move_task args: { taskId, columnId, position? }',
                 'update_task args: { taskId, title?, description?, priority?, dueDate? }',
                 'add_comment args: { taskId, body }',
                 'Use real column/task ids from the snapshot. Max 3 toolCalls.',
-                'Return strict JSON: { reply, suggestions[3-4], intent: "none"|"summarize"|"draft"|"tools"|"suggestions", boardPrompt: null, toolCalls: [{id,name,summary,args}] }.',
+                'suggestions MUST be an array of plain strings (never objects).',
+                'Return strict JSON: { reply: string, suggestions: string[3-4], intent: "none"|"summarize"|"draft"|"tools"|"suggestions", boardPrompt: null, toolCalls: [{id,name,summary,args}] }.',
                 'Place snapshot:',
                 contextPack.promptBlock,
               ].join('\n')
             : [
                 'Help with planning, board structure, prioritization, and how to use TaskFlow. Be concise and practical.',
+                'suggestions MUST be an array of plain strings (never objects).',
                 'Return strict JSON: { reply: string, suggestions: string[3-4], intent: "none"|"generate_board"|"templates"|"suggestions", boardPrompt: string|null, toolCalls: [] }.',
                 'Set intent to generate_board when the user clearly wants a new board created; put a clear generation prompt in boardPrompt.',
               ].join('\n'),
@@ -646,7 +702,33 @@ export const aiRealtimeService = {
         'You are TaskFlow AI assistant. Return strict JSON only.',
       )
 
-      if (!parsed || typeof parsed.reply !== 'string' || !parsed.reply.trim()) {
+      if (!parsed) {
+        return {
+          ...fallback,
+          intent: wantsSummarize
+            ? ('summarize' as const)
+            : wantsBoard
+              ? ('generate_board' as const)
+              : wantsTemplates
+                ? ('templates' as const)
+                : wantsSuggestions
+                  ? ('suggestions' as const)
+                  : ('none' as const),
+          boardPrompt: wantsBoard ? trimmed : null,
+        }
+      }
+
+      const replyFromModel = (() => {
+        if (typeof parsed.reply === 'string' && parsed.reply.trim()) return parsed.reply.trim()
+        if (Array.isArray(parsed.reply)) {
+          const lines = normalizeSuggestionLabels(parsed.reply, [])
+          if (lines.length > 0) return lines.map((label, index) => `${index + 1}. ${label}`).join('\n')
+        }
+        const asLabel = suggestionToLabel(parsed.reply)
+        return asLabel || ''
+      })()
+
+      if (!replyFromModel) {
         return {
           ...fallback,
           intent: wantsSummarize
@@ -682,10 +764,7 @@ export const aiRealtimeService = {
             .map((item, index) => ({
               id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `tool_${index + 1}`,
               name: item.name as ProposedAgentTool['name'],
-              summary:
-                typeof item.summary === 'string' && item.summary.trim()
-                  ? item.summary.trim().slice(0, 160)
-                  : `${item.name}`,
+              summary: toolCallSummary(item),
               args: item.args as Record<string, unknown>,
             }))
         : []
@@ -710,11 +789,25 @@ export const aiRealtimeService = {
                     ? ('suggestions' as const)
                     : ('none' as const)
 
+      const suggestions = normalizeSuggestionLabels(parsed.suggestions, fallback.suggestions)
+
+      // If the model stuffed draft tasks into suggestions as objects, surface titles in the reply too.
+      let reply = replyFromModel
+      if (
+        (intent === 'draft' || intent === 'tools') &&
+        Array.isArray(parsed.suggestions) &&
+        parsed.suggestions.some((item) => item && typeof item === 'object') &&
+        !/\n\s*[-•1-9]/.test(reply)
+      ) {
+        const drafted = normalizeSuggestionLabels(parsed.suggestions, [])
+        if (drafted.length > 0) {
+          reply = `${reply}\n\n${drafted.map((label, index) => `${index + 1}. ${label}`).join('\n')}`
+        }
+      }
+
       return {
-        reply: parsed.reply.trim(),
-        suggestions: Array.isArray(parsed.suggestions)
-          ? parsed.suggestions.map(String).filter(Boolean).slice(0, 4)
-          : fallback.suggestions,
+        reply,
+        suggestions,
         intent,
         boardPrompt:
           typeof parsed.boardPrompt === 'string' && parsed.boardPrompt.trim()

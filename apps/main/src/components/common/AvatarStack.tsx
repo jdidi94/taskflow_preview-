@@ -57,7 +57,14 @@ export function AvatarStack({
               className={`group relative flex ${sizeClass[size]} items-center justify-center overflow-hidden rounded-full border-2 border-background bg-muted font-semibold text-muted-foreground outline-none transition hover:z-20 focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
             >
               {item.avatarUrl ? (
-                <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" />
+                <img
+                  src={item.avatarUrl}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <span aria-hidden>{initials(item.name)}</span>
               )}

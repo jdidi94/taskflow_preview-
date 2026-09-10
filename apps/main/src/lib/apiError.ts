@@ -1,26 +1,35 @@
+const GENERIC_NETWORK = /^(Failed to fetch|NetworkError|Load failed|Network request failed|AbortError)/i
+
 /** Pull a useful message from RTK Query / API error envelopes. */
 export function getApiErrorMessage(err: unknown, fallback: string): string {
   if (!err || typeof err !== 'object') return fallback
   const data = 'data' in err ? (err as { data?: unknown }).data : undefined
-  if (!data || typeof data !== 'object') return fallback
+  if (data && typeof data === 'object') {
+    const record = data as {
+      message?: string
+      error?: string
+      details?: Array<{ message?: string; path?: string[] }> | Record<string, string>
+    }
 
-  const record = data as {
-    message?: string
-    error?: string
-    details?: Array<{ message?: string; path?: string[] }> | Record<string, string>
+    if (Array.isArray(record.details) && record.details.length > 0) {
+      const parts = record.details
+        .map((item) => item.message)
+        .filter((item): item is string => Boolean(item))
+      if (parts.length) return parts.join(' · ')
+    }
+
+    if (record.details && !Array.isArray(record.details)) {
+      const parts = Object.values(record.details).filter(Boolean)
+      if (parts.length) return parts.join(' · ')
+    }
+
+    if (record.message || record.error) return record.message || record.error || fallback
   }
 
-  if (Array.isArray(record.details) && record.details.length > 0) {
-    const parts = record.details
-      .map((item) => item.message)
-      .filter((item): item is string => Boolean(item))
-    if (parts.length) return parts.join(' · ')
+  if (err instanceof Error && err.message.trim()) {
+    if (GENERIC_NETWORK.test(err.message)) return fallback
+    return err.message
   }
 
-  if (record.details && !Array.isArray(record.details)) {
-    const parts = Object.values(record.details).filter(Boolean)
-    if (parts.length) return parts.join(' · ')
-  }
-
-  return record.message || record.error || fallback
+  return fallback
 }

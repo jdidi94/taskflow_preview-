@@ -50,7 +50,7 @@ export function OAuthCallbackPage() {
         if (cancelled) return
         dispatch(setCredentials({ token, user }))
         dispatch(setBootstrapped(true))
-        navigate('/dashboard', { replace: true })
+        navigate('/onboarding', { replace: true })
       } catch {
         if (!cancelled) setError(t('oauth.failed'))
       }

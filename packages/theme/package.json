@@ -15,7 +15,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"No lint configured yet\""
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"No theme tests yet\""
   },
   "peerDependencies": {
     "react": "^19.0.0",

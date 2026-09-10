@@ -86,6 +86,18 @@ export const githubService = {
   },
 
   async exchangeCodeForToken(code: string, redirectUri?: string) {
+    const clientId = env.githubLinkClientId
+    const clientSecret = env.githubLinkClientSecret
+    if (!clientId || !clientSecret) {
+      throw new Error('GitHub link OAuth is not configured (GITHUB_LINK_CLIENT_ID / SECRET)')
+    }
+
+    const expectedRedirect = env.githubLinkCallbackUrl.replace(/\/$/, '')
+    const incoming = (redirectUri || expectedRedirect).replace(/\/$/, '')
+    if (incoming !== expectedRedirect) {
+      throw new Error('Invalid GitHub link redirect URI')
+    }
+
     const response = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
@@ -93,10 +105,10 @@ export const githubService = {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        client_id: env.GITHUB_CLIENT_ID,
-        client_secret: env.GITHUB_CLIENT_SECRET,
+        client_id: clientId,
+        client_secret: clientSecret,
         code,
-        ...(redirectUri ? { redirect_uri: redirectUri } : {}),
+        redirect_uri: expectedRedirect,
       }),
     })
 
@@ -151,21 +163,76 @@ export const githubService = {
   },
 
   async getRepositories(accessToken: string, org: string) {
-    const { data } = await fetchGithub(`/orgs/${encodeURIComponent(org)}/repos?per_page=100`, accessToken)
+    const { data } = await fetchGithub(
+      `/orgs/${encodeURIComponent(org)}/repos?per_page=100&sort=pushed&direction=desc`,
+      accessToken,
+    )
     return (data as any[]).map((repo) => ({
-      id: repo.id,
-      name: repo.name,
-      fullName: repo.full_name,
-      description: repo.description ?? null,
-      url: repo.url,
-      htmlUrl: repo.html_url,
-      cloneUrl: repo.clone_url,
+      id: repo.id as number,
+      name: repo.name as string,
+      fullName: repo.full_name as string,
+      description: (repo.description as string | null) ?? null,
+      url: repo.url as string,
+      htmlUrl: repo.html_url as string,
+      cloneUrl: repo.clone_url as string,
       isPrivate: Boolean(repo.private),
       isFork: Boolean(repo.fork),
-      language: repo.language ?? null,
-      defaultBranch: repo.default_branch,
-      updatedAt: repo.updated_at,
+      language: (repo.language as string | null) ?? null,
+      defaultBranch: repo.default_branch as string,
+      updatedAt: repo.updated_at as string,
+      pushedAt: (repo.pushed_at as string | null) ?? null,
+      openIssuesCount: Number(repo.open_issues_count ?? 0),
+      stars: Number(repo.stargazers_count ?? 0),
+      forks: Number(repo.forks_count ?? 0),
     }))
+  },
+
+  /** Count open PRs via Link header when possible (1 request). */
+  async countOpenPullRequests(accessToken: string, org: string, repo: string) {
+    const path = `/repos/${encodeURIComponent(org)}/${encodeURIComponent(repo)}/pulls?state=open&per_page=1`
+    const response = await fetch(`${GITHUB_API_BASE}${path}`, {
+      headers: githubHeaders(accessToken),
+    })
+    if (response.status === 429) {
+      throw new Error('GitHub rate limit exceeded')
+    }
+    if (!response.ok) {
+      const raw = await response.text()
+      let message = `GitHub API request failed (${response.status})`
+      try {
+        message = JSON.parse(raw)?.message || message
+      } catch {
+        /* ignore */
+      }
+      throw new Error(message)
+    }
+    const link = response.headers.get('link')
+    if (link) {
+      const last = link.match(/[?&]page=(\d+)>;\s*rel="last"/)
+      if (last?.[1]) return Number(last[1])
+    }
+    const data = (await response.json()) as unknown[]
+    return Array.isArray(data) ? data.length : 0
+  },
+
+  async searchCount(accessToken: string, query: string) {
+    const { data } = await fetchGithub(
+      `/search/issues?q=${encodeURIComponent(query)}&per_page=1`,
+      accessToken,
+    )
+    return Number(data?.total_count ?? 0)
+  },
+
+  async getOrgEvents(accessToken: string, org: string) {
+    try {
+      const { data } = await fetchGithub(
+        `/orgs/${encodeURIComponent(org)}/events?per_page=100`,
+        accessToken,
+      )
+      return Array.isArray(data) ? data : []
+    } catch {
+      return []
+    }
   },
 
   async getRepositoryBranches(accessToken: string, org: string, repo: string) {

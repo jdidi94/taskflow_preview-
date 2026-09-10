@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 import type { ApiSuccess } from '@/types/domain'
 
 export type AnalyticsPeriod = 'week' | 'month' | 'quarter' | 'year'
@@ -67,6 +67,7 @@ type RangeArgs = {
 export const analyticsApi = createApi({
   reducerPath: 'analyticsApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Analytics'],
   endpoints: (builder) => ({
     getUserAnalytics: builder.query<ApiSuccess<UserAnalyticsPayload>, { range?: string } | void>({

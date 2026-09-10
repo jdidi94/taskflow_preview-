@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Button } from '@taskflow/ui'
 
 import { LandingBoardMock } from '@/components/auth/LandingBoardMock'
+import { BrandLogo } from '@/components/common/BrandLogo'
 import { MarketingNav } from '@/components/marketing/MarketingNav'
 import { useI18n } from '@/i18n'
 
@@ -26,14 +27,14 @@ export function LandingHero() {
         <MarketingNav compact />
 
         <section className="flex flex-1 flex-col justify-center gap-5 py-16 sm:max-w-xl lg:max-w-lg">
-          <motion.p
-            className="font-display text-5xl font-semibold tracking-tight text-primary sm:text-6xl md:text-7xl"
+          <motion.div
+            className="max-w-md"
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
           >
-            {t('common.brand')}
-          </motion.p>
+            <BrandLogo variant="lockup" className="h-20 max-w-[18rem] sm:h-24 sm:max-w-[22rem] md:h-28 md:max-w-[26rem]" />
+          </motion.div>
           <motion.h1
             className="font-display text-2xl font-semibold leading-snug tracking-tight text-foreground sm:text-3xl md:text-4xl"
             initial={{ opacity: 0, y: 14 }}

@@ -4,6 +4,7 @@ import { Admin } from '../models/Admin.js'
 import { Notification } from '../models/Notification.js'
 import { User } from '../models/User.js'
 import { verifyAccessToken, type JwtPayload } from '../utils/jwt.js'
+import { serializeNotification } from '../utils/serializeNotification.js'
 
 type NotificationSocket = Socket & {
   data: {
@@ -94,7 +95,7 @@ async function authenticateNotificationSocket(
 }
 
 function toPlainNotification(doc: any) {
-  return doc?.toObject ? doc.toObject() : doc
+  return serializeNotification(doc)
 }
 
 export function registerNotificationNamespace(io: Server) {

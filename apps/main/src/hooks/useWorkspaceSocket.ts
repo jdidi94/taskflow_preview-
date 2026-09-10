@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { getWorkspaceSocket, pushSocketLog } from '@/lib/socket'
+import { getWorkspaceSocket } from '@/lib/socket'
 import { boardsApi } from '@/services/boardsApi'
 import { spacesApi } from '@/services/spacesApi'
 import { workspacesApi } from '@/services/workspacesApi'
@@ -36,8 +36,7 @@ export function useWorkspaceSocket(workspaceId: string | undefined) {
       }
     }
 
-    const onAny = (event: string, payload: Record<string, unknown> = {}) => {
-      pushSocketLog('/workspace', 'event', event, payload)
+    const onAny = (_event: string, payload: Record<string, unknown> = {}) => {
       const space = payload.space as { id?: string } | undefined
       const board = payload.board as { id?: string; space?: string } | undefined
       const spaceId =
@@ -71,7 +70,6 @@ export function useWorkspaceSocket(workspaceId: string | undefined) {
 
     const join = () => {
       socket.emit('workspace:join', { workspaceId })
-      pushSocketLog('/workspace', 'emit', `workspace:join ${workspaceId}`)
     }
 
     join()

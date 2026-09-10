@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { ThemeToggle } from '@taskflow/theme'
 
 import { LandingBoardMock } from '@/components/auth/LandingBoardMock'
+import { BrandLogo } from '@/components/common/BrandLogo'
 import { LanguageSwitcher } from '@/components/common/LanguageSwitcher'
 import { useI18n } from '@/i18n'
 
@@ -33,22 +34,19 @@ export function AuthShell({ children, accent = 'primary' }: Props) {
         />
 
         <div className="relative z-10 flex flex-1 flex-col justify-between p-10 xl:p-14">
-          <Link
-            to="/"
-            className="font-display text-2xl font-semibold tracking-tight text-primary"
-          >
-            {t('common.brand')}
+          <Link to="/" className="inline-flex" aria-label={t('common.brand')}>
+            <BrandLogo variant="wordmark" className="h-14 w-14" />
           </Link>
 
           <div className="max-w-md pb-6">
-            <motion.p
-              className="font-display text-5xl font-semibold tracking-tight text-primary xl:text-6xl"
+            <motion.div
+              className="max-w-lg"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             >
-              {t('common.brand')}
-            </motion.p>
+              <BrandLogo variant="lockup" className="h-20 max-w-[20rem] xl:h-24 xl:max-w-[24rem]" />
+            </motion.div>
             <motion.p
               className="mt-4 text-lg text-muted-foreground"
               initial={{ opacity: 0, y: 10 }}
@@ -65,9 +63,10 @@ export function AuthShell({ children, accent = 'primary' }: Props) {
         <header className="flex items-center justify-between gap-3 px-4 pt-6 sm:px-8 sm:pt-8">
           <Link
             to="/"
-            className="font-display text-lg font-semibold text-primary lg:invisible lg:pointer-events-none"
+            className="inline-flex lg:invisible lg:pointer-events-none"
+            aria-label={t('common.brand')}
           >
-            {t('common.brand')}
+            <BrandLogo variant="wordmark" className="h-12 w-12" />
           </Link>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />

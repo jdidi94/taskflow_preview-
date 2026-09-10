@@ -11,6 +11,7 @@ export type BoardPresenceUser = {
   email?: string
   avatar?: string | null
   status: PresenceStatus
+  viewingTaskId?: string | null
 }
 
 type PresencePayloadUser = {
@@ -20,6 +21,7 @@ type PresencePayloadUser = {
   email?: string
   avatar?: string | null
   status?: PresenceStatus
+  viewingTaskId?: string | null
 }
 
 function normalizeUser(
@@ -35,6 +37,7 @@ function normalizeUser(
     email: raw.email,
     avatar: raw.avatar ?? null,
     status: raw.status ?? status,
+    viewingTaskId: raw.viewingTaskId ?? null,
   }
 }
 
@@ -94,11 +97,18 @@ export function useBoardPresence(boardId: string | undefined): BoardPresenceUser
       boardId?: string
       user?: PresencePayloadUser
       status?: PresenceStatus
+      viewingTaskId?: string | null
     }) => {
       if (!active || payload.boardId !== boardId) return
       const user = normalizeUser(payload.user, payload.status ?? 'online')
       if (!user) return
-      setUsers((prev) => upsert(prev, { ...user, status: payload.status ?? user.status }))
+      setUsers((prev) =>
+        upsert(prev, {
+          ...user,
+          status: payload.status ?? user.status,
+          viewingTaskId: payload.viewingTaskId ?? user.viewingTaskId ?? null,
+        }),
+      )
     }
 
     // Seed self immediately; roster arrives via board:presence after join.
@@ -110,6 +120,7 @@ export function useBoardPresence(boardId: string | undefined): BoardPresenceUser
           email: self.email,
           avatar: self.avatar ?? null,
           status: 'online',
+          viewingTaskId: null,
         },
       ])
     } else {

@@ -3,9 +3,11 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  closestCenter,
   closestCorners,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
@@ -15,9 +17,12 @@ import {
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
-import { useState } from 'react'
+import { useReducedMotion } from 'framer-motion'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 
+import { focusTaskCard, nextRovingTaskId } from '@/components/board/boardKeyboard'
 import { KanbanColumn } from '@/components/board/KanbanColumn'
+import { useI18n } from '@/i18n'
 import type { NormalizedWorkspaceMember } from '@/components/workspace/normalizeMembers'
 import type { BoardColumn, Task } from '@/types/domain'
 
@@ -41,10 +46,17 @@ type KanbanBoardProps = {
     position: number
   }) => void | Promise<void>
   onReorderColumns: (columnIds: string[]) => void | Promise<void>
-  onAddTask: (columnId: string) => void
+  onQuickAdd: (columnId: string, title: string) => Promise<void>
+  onAddTaskMore?: (columnId: string) => void
   onEditTask: (task: Task) => void
   onDeleteTask: (task: Task) => void
   onDeleteColumn: (column: BoardColumn) => void
+  highlightedTaskId?: string | null
+  focusedColumnId?: string | null
+  onFocusColumn?: (columnId: string) => void
+  quickAddColumnId?: string | null
+  onQuickAddColumnChange?: (columnId: string | null) => void
+  disabled?: boolean
 }
 
 export function KanbanBoard({
@@ -53,17 +65,50 @@ export function KanbanBoard({
   members,
   onMoveTask,
   onReorderColumns,
-  onAddTask,
+  onQuickAdd,
+  onAddTaskMore,
   onEditTask,
   onDeleteTask,
   onDeleteColumn,
+  highlightedTaskId,
+  focusedColumnId,
+  onFocusColumn,
+  quickAddColumnId,
+  onQuickAddColumnChange,
+  disabled,
 }: KanbanBoardProps) {
+  const { isRTL } = useI18n()
+  const reduceMotion = useReducedMotion()
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [activeColumn, setActiveColumn] = useState<BoardColumn | null>(null)
+  const [rovingTaskId, setRovingTaskId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const ids = new Set(
+      [...tasksByColumn.values()].flatMap((list) => list.map((task) => task.id)),
+    )
+    if (rovingTaskId && ids.has(rovingTaskId)) return
+    const firstColumn = focusedColumnId
+      ? tasksByColumn.get(focusedColumnId)
+      : tasksByColumn.get(columns[0]?.id ?? '')
+    setRovingTaskId(firstColumn?.[0]?.id ?? [...ids][0] ?? null)
+  }, [columns, focusedColumnId, rovingTaskId, tasksByColumn])
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+
+  // Nested task sortables steal column collisions — prefer column targets while reordering columns.
+  const collisionDetection: CollisionDetection = (args) => {
+    if (args.active.data.current?.type === 'column') {
+      const columnContainers = args.droppableContainers.filter((container) => {
+        const type = container.data.current?.type
+        return type === 'column' || String(container.id).startsWith('sort-col-')
+      })
+      return closestCenter({ ...args, droppableContainers: columnContainers })
+    }
+    return closestCorners(args)
+  }
 
   function onDragStart(event: DragStartEvent) {
     const type = event.active.data.current?.type
@@ -164,28 +209,81 @@ export function KanbanBoard({
     })
   }
 
+  function onBoardKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (activeTask || disabled) return
+    const target = event.target
+    if (!(target instanceof HTMLElement) || !target.closest('[data-task-card]')) return
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return
+    }
+    event.preventDefault()
+    const direction =
+      event.key === 'ArrowDown'
+        ? 'down'
+        : event.key === 'ArrowUp'
+          ? 'up'
+          : event.key === 'ArrowRight'
+            ? isRTL
+              ? 'prevColumn'
+              : 'nextColumn'
+            : isRTL
+              ? 'nextColumn'
+              : 'prevColumn'
+    const nextId = nextRovingTaskId({
+      columns,
+      tasksByColumn,
+      currentId: rovingTaskId,
+      direction,
+    })
+    if (!nextId) return
+    setRovingTaskId(nextId)
+    const nextColumnId = [...tasksByColumn.entries()].find(([, list]) =>
+      list.some((task) => task.id === nextId),
+    )?.[0]
+    if (nextColumnId) onFocusColumn?.(nextColumnId)
+    requestAnimationFrame(() => focusTaskCard(nextId))
+  }
+
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onDragCancel={() => {
+        setActiveTask(null)
+        setActiveColumn(null)
+      }}
     >
       <SortableContext
         items={columns.map((c) => `sort-col-${c.id}`)}
         strategy={horizontalListSortingStrategy}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div
+          className={`flex gap-4 overflow-x-auto pb-4 max-md:scroll-ps-4 max-md:px-[max(0.5rem,calc(50vw-9rem))] ${
+            reduceMotion ? '' : 'snap-x snap-mandatory md:snap-none'
+          }`}
+          onKeyDown={onBoardKeyDown}
+        >
           {columns.map((column) => (
             <KanbanColumn
               key={column.id}
               column={column}
               tasks={tasksByColumn.get(column.id) ?? []}
               members={members}
-              onAddTask={onAddTask}
+              onQuickAdd={onQuickAdd}
+              onAddTaskMore={onAddTaskMore}
               onEditTask={onEditTask}
               onDeleteTask={onDeleteTask}
               onDeleteColumn={onDeleteColumn}
+              highlightedTaskId={highlightedTaskId}
+              focused={focusedColumnId === column.id}
+              onFocusColumn={onFocusColumn}
+              quickAddOpen={quickAddColumnId === column.id}
+              onQuickAddOpenChange={(open) => onQuickAddColumnChange?.(open ? column.id : null)}
+              rovingTaskId={rovingTaskId}
+              onRovingFocus={setRovingTaskId}
+              disabled={disabled}
             />
           ))}
         </div>

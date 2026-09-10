@@ -86,6 +86,22 @@ export const restoreBoard = asyncHandler(async (req: MembershipRequest, res: Res
   res.json({ success: true, data })
 })
 
+export const permanentDeleteBoard = asyncHandler(async (req: MembershipRequest, res: Response) => {
+  if (!req.board) throw new AppError('Board not found', 404)
+  const boardId = req.board._id.toString()
+  const spaceId = String(req.board.space)
+  await boardService.permanentDelete(req.board)
+  const workspaceId = await workspaceIdForSpace(spaceId)
+  emitWorkspaceFromRequest(req, workspaceId, 'workspace:board_updated', {
+    boardId,
+    spaceId,
+    workspaceId,
+    deleted: true,
+    updatedBy: req.user!.sub,
+  })
+  res.json({ success: true })
+})
+
 export const listColumns = asyncHandler(async (req: MembershipRequest, res: Response) => {
   if (!req.board) throw new AppError('Board not found', 404)
   const data = await boardService.listColumns(req.board._id.toString())

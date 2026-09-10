@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle } from '@taskflow/ui'
 
 import { AuthField } from '@/components/auth/AuthField'
 import { OAuthButtons } from '@/components/auth/OAuthButtons'
 import { useI18n } from '@/i18n'
 import { getApiErrorMessage } from '@/lib/apiError'
+import { safeInternalPath } from '@/lib/safeInternalPath'
 import { useCompleteLogin2FAMutation, useLoginMutation } from '@/services/authApi'
 import { useAppDispatch } from '@/store/hooks'
 import { setBootstrapped, setCredentials } from '@/store/slices/authSlice'
@@ -26,6 +27,7 @@ function isAuthSuccess(
 export function LoginForm() {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const dispatch = useAppDispatch()
   const [login, { isLoading: loggingIn }] = useLoginMutation()
   const [complete2FA, { isLoading: verifying2FA }] = useCompleteLogin2FAMutation()
@@ -46,7 +48,7 @@ export function LoginForm() {
     }
     dispatch(setCredentials({ token: result.token, user: result.user }))
     dispatch(setBootstrapped(true))
-    navigate('/dashboard', { replace: true })
+    navigate(safeInternalPath(searchParams.get('next')), { replace: true })
   }
 
   async function onSubmitCredentials(event: FormEvent) {

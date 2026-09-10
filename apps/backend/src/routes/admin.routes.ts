@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import * as adminActivityController from '../controllers/adminActivity.controller.js'
 import * as adminController from '../controllers/admin.controller.js'
 import { authenticate, requireAdmin } from '../middlewares/auth.js'
 import { makeFileUploadMiddleware } from '../middlewares/fileUpload.js'
@@ -25,6 +26,12 @@ import {
   updateAdminProjectTemplateSchema,
   updateManagedUserSchema,
 } from './validator/admin.schemas.js'
+import {
+  adminAuditListQuerySchema,
+  adminNotificationIdParamsSchema,
+  adminNotificationListQuerySchema,
+  broadcastAdminNotificationSchema,
+} from './validator/adminActivity.schemas.js'
 
 export const adminRouter = Router()
 
@@ -35,6 +42,7 @@ adminRouter.post(
   validateBody(adminComplete2FASchema),
   adminController.completeLoginWith2FA,
 )
+adminRouter.get('/auth/setup-status', adminController.getSetupStatus)
 adminRouter.post(
   '/auth/setup-first-admin',
   validateBody(setupFirstAdminSchema),
@@ -118,6 +126,31 @@ adminRouter.get(
   adminController.exportAnalytics,
 )
 adminRouter.get('/system/health', adminController.getSystemHealth)
+
+adminRouter.get(
+  '/notifications',
+  validateQuery(adminNotificationListQuerySchema),
+  adminActivityController.listAdminNotifications,
+)
+adminRouter.get('/notifications/stats', adminActivityController.getAdminNotificationStats)
+adminRouter.post(
+  '/notifications/broadcast',
+  validateBody(broadcastAdminNotificationSchema),
+  adminActivityController.broadcastAdminNotification,
+)
+adminRouter.post('/notifications/mark-all-read', adminActivityController.markAllAdminNotificationsRead)
+adminRouter.patch(
+  '/notifications/:notificationId/read',
+  validateParams(adminNotificationIdParamsSchema),
+  adminActivityController.markAdminNotificationRead,
+)
+adminRouter.delete(
+  '/notifications/:notificationId',
+  validateParams(adminNotificationIdParamsSchema),
+  adminActivityController.deleteAdminNotification,
+)
+adminRouter.get('/audit-logs', validateQuery(adminAuditListQuerySchema), adminActivityController.listAdminAuditLogs)
+adminRouter.get('/audit-logs/stats', adminActivityController.getAdminAuditStats)
 
 // Admin templates
 adminRouter.get('/templates/projects', adminController.getProjectTemplates)

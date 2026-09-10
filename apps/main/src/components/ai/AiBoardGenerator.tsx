@@ -4,6 +4,7 @@ import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Input, Loading
 
 import { PageBreadcrumbs } from '@/components/common/PageBreadcrumbs'
 import { useI18n } from '@/i18n'
+import { getApiErrorMessage } from '@/lib/apiError'
 import { getAiSocket } from '@/lib/socket'
 import { useCreateBoardMutation } from '@/services/boardsApi'
 import { useCreateTaskMutation } from '@/services/tasksApi'
@@ -77,7 +78,7 @@ export function AiBoardGenerator({ embedded = false }: Props) {
       socket.emit('generate_board', { prompt: prompt.trim() })
     } catch (err) {
       setGenerating(false)
-      setError(err instanceof Error ? err.message : t('ai.error'))
+      setError(getApiErrorMessage(err, t('ai.error')))
     }
   }
 
@@ -92,7 +93,7 @@ export function AiBoardGenerator({ embedded = false }: Props) {
       }).unwrap()
       setCreatedBoardId(board.data.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('ai.error'))
+      setError(getApiErrorMessage(err, t('ai.error')))
     }
   }
 

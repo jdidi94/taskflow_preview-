@@ -199,6 +199,8 @@ export const aiAgentToolsService = {
         metadata: {
           mode: 'confirm_write',
           tools: results,
+          boardId,
+          taskId: results.find((item) => item.ok && item.taskId)?.taskId,
         },
         io: input.io,
       })

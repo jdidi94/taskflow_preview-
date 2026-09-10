@@ -3,6 +3,7 @@ import { Types } from 'mongoose'
 
 import type { AuthedRequest } from '../middlewares/auth.js'
 import { Admin } from '../models/Admin.js'
+import { recordAdminAudit } from '../services/adminAudit.service.js'
 import { AppError } from '../utils/AppError.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { param } from '../utils/params.js'
@@ -71,6 +72,18 @@ export const createAdmin = asyncHandler(async (req: AuthedRequest, res: Response
     notes,
     createdBy: new Types.ObjectId(req.user!.sub),
     isActive: true,
+  })
+
+  void recordAdminAudit(req, {
+    action: 'admin.create',
+    targetType: 'admin',
+    targetId: String(admin._id),
+    targetLabel: admin.userEmail,
+    summary: `Created staff admin ${admin.userEmail}`,
+    metadata: { role },
+    notify: true,
+    notifyPriority: 'high',
+    href: '/users',
   })
 
   res.status(201).json({ success: true, data: { admin: toPublicAdmin(admin) } })
@@ -154,6 +167,15 @@ export const updateAdmin = asyncHandler(async (req: AuthedRequest, res: Response
   const updatedAdmin = await Admin.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
   if (!updatedAdmin) throw new AppError('Admin user not found', 404)
 
+  void recordAdminAudit(req, {
+    action: 'admin.update',
+    targetType: 'admin',
+    targetId: String(updatedAdmin._id),
+    targetLabel: updatedAdmin.userEmail,
+    summary: `Updated staff admin ${updatedAdmin.userEmail}`,
+    href: '/users',
+  })
+
   res.json({ success: true, data: { admin: toPublicAdmin(updatedAdmin) } })
 })
 
@@ -165,6 +187,16 @@ export const deleteAdmin = asyncHandler(async (req: AuthedRequest, res: Response
   if (admin.role === 'super_admin') throw new AppError('Cannot delete super admin users', 400)
 
   await Admin.findByIdAndDelete(id)
+  void recordAdminAudit(req, {
+    action: 'admin.delete',
+    targetType: 'admin',
+    targetId: id,
+    targetLabel: admin.userEmail,
+    summary: `Deleted staff admin ${admin.userEmail}`,
+    notify: true,
+    notifyPriority: 'urgent',
+    href: '/users',
+  })
   res.json({ success: true })
 })
 
@@ -186,6 +218,17 @@ export const changeAdminPassword = asyncHandler(async (req: AuthedRequest, res: 
   admin.password = newPassword
   await admin.save()
 
+  void recordAdminAudit(req, {
+    action: 'admin.password',
+    targetType: 'admin',
+    targetId: id,
+    targetLabel: admin.userEmail,
+    summary: `Changed password for staff admin ${admin.userEmail}`,
+    notify: true,
+    notifyPriority: 'high',
+    href: '/users',
+  })
+
   res.json({ success: true })
 })
 
@@ -198,6 +241,17 @@ export const toggleAdminStatus = asyncHandler(async (req: AuthedRequest, res: Re
 
   admin.isActive = !admin.isActive
   await admin.save()
+
+  void recordAdminAudit(req, {
+    action: admin.isActive ? 'admin.activate' : 'admin.deactivate',
+    targetType: 'admin',
+    targetId: id,
+    targetLabel: admin.userEmail,
+    summary: `${admin.isActive ? 'Activated' : 'Deactivated'} staff admin ${admin.userEmail}`,
+    notify: true,
+    notifyPriority: 'high',
+    href: '/users',
+  })
 
   const status = admin.isActive ? 'activated' : 'deactivated'
   res.json({

@@ -109,6 +109,14 @@ export type TaskChecklistItem = {
   done: boolean
 }
 
+export type TaskDependencyType = 'blocks' | 'blocked_by' | 'related'
+
+export type TaskDependency = {
+  id: string
+  taskId: string
+  type: TaskDependencyType
+}
+
 export type TaskFile = {
   id: string
   _id?: string
@@ -135,7 +143,7 @@ export type Task = {
   color?: string | null
   assignees?: Array<string | TaskUserRef>
   reporter?: string | TaskUserRef | null
-  watchers?: unknown[]
+  watchers?: Array<string | TaskUserRef>
   attachments?: string[]
   tags?: string[]
   dueDate?: string | null
@@ -143,9 +151,16 @@ export type Task = {
   archived?: boolean
   comments?: TaskComment[]
   checklist?: TaskChecklistItem[]
-  dependencies?: unknown[]
+  dependencies?: TaskDependency[]
   createdAt?: string
   updatedAt?: string
+}
+
+export type AssignedTask = Task & {
+  boardName?: string | null
+  spaceName?: string | null
+  workspaceId?: string | null
+  workspaceName?: string | null
 }
 
 export type ApiSuccess<T> = {

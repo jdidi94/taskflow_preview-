@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 import { normalizeChat, normalizeChatMessage, type ChatMessage, type ChatThread } from '@/types/chat'
 
 type ApiSuccess<T> = { success: true; data: T }
@@ -15,9 +15,14 @@ export function setStoredChatId(id: string) {
   localStorage.setItem(CHAT_STORAGE_KEY, id)
 }
 
+export function clearStoredChatId() {
+  localStorage.removeItem(CHAT_STORAGE_KEY)
+}
+
 export const chatApi = createApi({
   reducerPath: 'chatApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Chat'],
   endpoints: (builder) => ({
     startChat: builder.mutation<ApiSuccess<{ chat: ChatThread }>, { message: string }>({

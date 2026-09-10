@@ -49,7 +49,51 @@ function toPublicChecklistItem(item: any) {
   }
 }
 
-function toPublicTask(task: ITask) {
+function refId(value: unknown): string {
+  if (!value) return ''
+  if (typeof value === 'object' && value !== null && '_id' in value) {
+    return String((value as { _id: Types.ObjectId })._id)
+  }
+  return String(value)
+}
+
+function toAssignedPublicTask(task: ITask, workspaceNames: Map<string, string>) {
+  const boardPop = task.board as unknown as { _id?: Types.ObjectId; name?: string } | string
+  const spacePop = task.space as unknown as
+    | { _id?: Types.ObjectId; name?: string; workspace?: Types.ObjectId }
+    | string
+    | undefined
+
+  const boardId = refId(task.board)
+  const spaceId = task.space ? refId(task.space) : ''
+  const workspaceId =
+    typeof spacePop === 'object' && spacePop?.workspace ? String(spacePop.workspace) : ''
+
+  return {
+    id: task._id.toString(),
+    title: task.title,
+    description: task.description ?? null,
+    board: boardId,
+    boardName: typeof boardPop === 'object' ? (boardPop.name ?? null) : null,
+    space: spaceId || undefined,
+    spaceName: typeof spacePop === 'object' ? (spacePop.name ?? null) : null,
+    workspaceId: workspaceId || null,
+    workspaceName: workspaceId ? (workspaceNames.get(workspaceId) ?? null) : null,
+    column: String(task.column),
+    priority: task.priority,
+    status: task.status,
+    color: task.color,
+    assignees: (task.assignees ?? []).map((a) => toUserRef(a) ?? String(a)),
+    reporter: toUserRef(task.reporter) ?? String(task.reporter),
+    tags: task.tags ?? [],
+    dueDate: task.dueDate ? new Date(task.dueDate).toISOString() : null,
+    position: task.position,
+    archived: task.archived,
+  }
+}
+
+function toPublicTask(task: ITask, options?: { includeComments?: boolean }) {
+  const includeComments = options?.includeComments !== false
   return {
     id: task._id.toString(),
     title: task.title,
@@ -68,9 +112,13 @@ function toPublicTask(task: ITask) {
     dueDate: task.dueDate ? new Date(task.dueDate).toISOString() : null,
     position: task.position,
     archived: task.archived,
-    comments: (task.comments ?? []).map(toPublicComment),
+    comments: includeComments ? (task.comments ?? []).map(toPublicComment) : [],
     checklist: (task.checklist ?? []).map(toPublicChecklistItem),
-    dependencies: task.dependencies,
+    dependencies: (task.dependencies ?? []).map((item) => ({
+      id: String((item as { _id?: Types.ObjectId })._id ?? ''),
+      taskId: String(item.task),
+      type: item.type,
+    })),
     createdAt: (task as any).createdAt,
     updatedAt: (task as any).updatedAt,
   }
@@ -82,10 +130,15 @@ const TASK_POPULATE = [
   { path: 'comments.author', select: 'name email avatar' },
 ] as const
 
+const TASK_LIST_POPULATE = [
+  { path: 'assignees', select: 'name email avatar' },
+  { path: 'reporter', select: 'name email avatar' },
+] as const
+
 async function hydrateTask(taskId: string) {
   const task = await Task.findById(taskId).populate(TASK_POPULATE as any)
   if (!task) throw new AppError('Task not found', 404)
-  return toPublicTask(task)
+  return toPublicTask(task, { includeComments: true })
 }
 
 function mapChecklistInput(items: ChecklistInput[] | undefined) {
@@ -175,29 +228,59 @@ export const taskService = {
 
     const tasks = await Task.find(query)
       .sort({ position: 1, updatedAt: -1 })
-      .populate(TASK_POPULATE as any)
-    return tasks.map(toPublicTask)
+      .select('-comments')
+      .populate(TASK_LIST_POPULATE as any)
+      .lean()
+    return tasks.map((task) => toPublicTask(task as unknown as ITask, { includeComments: false }))
   },
 
   async listAssignedUpcoming(
     userId: string,
-    options: { withinDays?: number; limit?: number } = {},
+    options: { scope?: 'upcoming' | 'all'; withinDays?: number; limit?: number } = {},
   ) {
-    const withinDays = options.withinDays ?? 14
-    const limit = Math.min(Math.max(options.limit ?? 10, 1), 50)
-    const end = new Date(Date.now() + withinDays * 24 * 60 * 60 * 1000)
-
-    const tasks = await Task.find({
+    const scope = options.scope ?? 'upcoming'
+    const query: Record<string, unknown> = {
       assignees: new Types.ObjectId(userId),
       archived: false,
       status: { $nin: ['done', 'archived'] },
-      dueDate: { $ne: null, $lte: end },
-    })
-      .sort({ dueDate: 1 })
-      .limit(limit)
-      .populate(TASK_POPULATE as any)
+    }
 
-    return tasks.map(toPublicTask)
+    if (scope !== 'all') {
+      const withinDays = options.withinDays ?? 14
+      const end = new Date(Date.now() + withinDays * 24 * 60 * 60 * 1000)
+      query.dueDate = { $ne: null, $lte: end }
+    }
+
+    const limit =
+      scope === 'all'
+        ? Math.min(Math.max(options.limit ?? 200, 1), 200)
+        : Math.min(Math.max(options.limit ?? 10, 1), 50)
+
+    const tasks = await Task.find(query)
+      .sort({ dueDate: 1, title: 1 })
+      .limit(limit)
+      .select('-comments')
+      .populate(TASK_LIST_POPULATE as any)
+      .populate({ path: 'board', select: 'name space' })
+      .populate({ path: 'space', select: 'name workspace' })
+      .lean()
+
+    const workspaceIds = [
+      ...new Set(
+        tasks
+          .map((task) => {
+            const space = task.space as unknown as { workspace?: Types.ObjectId } | null
+            return space?.workspace ? String(space.workspace) : null
+          })
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ]
+    const workspaces = workspaceIds.length
+      ? await Workspace.find({ _id: { $in: workspaceIds } }).select('name').lean()
+      : []
+    const workspaceNames = new Map(workspaces.map((item) => [String(item._id), item.name]))
+
+    return tasks.map((task) => toAssignedPublicTask(task as unknown as ITask, workspaceNames))
   },
 
   async getById(userId: string, taskId: string) {
@@ -464,6 +547,40 @@ export const taskService = {
     return { success: true as const }
   },
 
+  async restore(
+    userId: string,
+    taskId: string,
+    input?: { columnId?: string; position?: number },
+  ) {
+    const task = await Task.findById(taskId)
+    if (!task) throw new AppError('Task not found', 404)
+    await assertBoardAccess(userId, String(task.board))
+
+    if (!task.archived) {
+      return hydrateTask(taskId)
+    }
+
+    const columnId = input?.columnId ?? String(task.column)
+    const column = await Column.findOne({
+      _id: columnId,
+      board: task.board,
+      isActive: true,
+    })
+    if (!column) throw new AppError('Column not found', 404)
+
+    const position = await insertTaskIntoColumn(
+      columnId,
+      taskId,
+      input?.position ?? column.taskIds.length,
+    )
+    task.archived = false
+    if (task.status === 'archived') task.status = 'todo'
+    task.column = column._id as Types.ObjectId
+    task.position = position
+    await task.save()
+    return hydrateTask(taskId)
+  },
+
   async bulkUpdate(
     userId: string,
     input: {
@@ -594,7 +711,7 @@ export const taskService = {
         prefCategory: 'spaceUpdates',
       })
     }
-    return toPublicTask(task)
+    return hydrateTask(taskId)
   },
 
   async removeWatcher(userId: string, taskId: string, watcherId: string) {
@@ -604,7 +721,7 @@ export const taskService = {
 
     task.watchers = task.watchers.filter((id) => String(id) !== watcherId)
     await task.save()
-    return toPublicTask(task)
+    return hydrateTask(taskId)
   },
 
   async addDependency(
@@ -633,7 +750,7 @@ export const taskService = {
       type: input.type,
     })
     await task.save()
-    return toPublicTask(task)
+    return hydrateTask(taskId)
   },
 
   async removeDependency(userId: string, taskId: string, dependencyId: string) {
@@ -645,6 +762,6 @@ export const taskService = {
     task.dependencies = task.dependencies.filter((d) => String((d as any)._id) !== dependencyId) as any
     if (task.dependencies.length === before) throw new AppError('Dependency not found', 404)
     await task.save()
-    return toPublicTask(task)
+    return hydrateTask(taskId)
   },
 }

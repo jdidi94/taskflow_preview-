@@ -28,9 +28,10 @@ type TimelineViewProps = {
   tasks: Task[]
   columns: BoardColumn[]
   onEditTask: (task: Task) => void
+  highlightedTaskId?: string | null
 }
 
-export function TimelineView({ tasks, columns, onEditTask }: TimelineViewProps) {
+export function TimelineView({ tasks, columns, onEditTask, highlightedTaskId }: TimelineViewProps) {
   const { t, locale } = useI18n()
 
   const range = useMemo(() => buildTimelineRange(tasks), [tasks])
@@ -170,7 +171,11 @@ export function TimelineView({ tasks, columns, onEditTask }: TimelineViewProps) 
                               type="button"
                               title={task.title}
                               onClick={() => onEditTask(task)}
-                              className={`absolute z-[2] truncate rounded-md border border-background/30 px-1.5 text-start text-[10px] font-medium shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${PRIORITY_RAIL[task.priority]} ${BAR_TEXT[task.priority]}`}
+                              className={`absolute z-[2] truncate rounded-md border px-1.5 text-start text-[10px] font-medium shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${PRIORITY_RAIL[task.priority]} ${BAR_TEXT[task.priority]} ${
+                                highlightedTaskId === task.id
+                                  ? 'z-[3] border-primary ring-2 ring-primary/70'
+                                  : 'border-background/30'
+                              }`}
                               style={{
                                 insetInlineStart: day * DAY_W + 2,
                                 top: 4 + row * ROW_H,
@@ -205,7 +210,12 @@ export function TimelineView({ tasks, columns, onEditTask }: TimelineViewProps) 
           </header>
           <ul className="divide-y divide-border/50">
             {undated.map((task) => (
-              <BoardDenseTaskRow key={task.id} task={task} onEdit={onEditTask} />
+              <BoardDenseTaskRow
+                key={task.id}
+                task={task}
+                highlighted={highlightedTaskId === task.id}
+                onEdit={onEditTask}
+              />
             ))}
           </ul>
         </section>

@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from 'node:http'
 import { Server, type Socket } from 'socket.io'
 import { env } from '../config/env.js'
+import { logger } from '../config/logger.js'
 import { verifyAccessToken, type JwtPayload } from '../utils/jwt.js'
 import { registerAiNamespace } from './ai.socket.js'
 import { registerBoardNamespace } from './board.socket.js'
@@ -49,7 +50,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
 
   io.on('connection', (socket: AuthedSocket) => {
     const user = socket.data.user
-    console.log(`Socket connected: ${socket.id} user=${user?.sub ?? 'unknown'}`)
+    logger.info({ socketId: socket.id, userId: user?.sub }, 'Socket connected')
 
     socket.emit('system:ready', {
       socketId: socket.id,
@@ -58,7 +59,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
     })
 
     socket.on('disconnect', (reason) => {
-      console.log(`Socket disconnected: ${socket.id} (${reason})`)
+      logger.info({ socketId: socket.id, reason }, 'Socket disconnected')
     })
   })
 

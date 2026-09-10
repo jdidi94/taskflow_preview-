@@ -113,11 +113,17 @@ export function useAiSocket() {
       setConnected(socket.connected)
       const onConnect = () => setConnected(true)
       const onDisconnect = () => setConnected(false)
+      const onConnectError = () => setConnected(false)
       socket.on('connect', onConnect)
       socket.on('disconnect', onDisconnect)
+      socket.on('connect_error', onConnectError)
+      if (!socket.connected) {
+        socket.connect()
+      }
       return () => {
         socket?.off('connect', onConnect)
         socket?.off('disconnect', onDisconnect)
+        socket?.off('connect_error', onConnectError)
       }
     } catch {
       setConnected(false)

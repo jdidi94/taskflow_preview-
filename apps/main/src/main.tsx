@@ -8,6 +8,10 @@ import '@taskflow/ui/styles.css'
 import './index.css'
 
 import App from './App.tsx'
+import { ApiHealthGate } from '@/components/common/ApiHealthGate'
+import { ErrorBoundary } from '@/components/common/ErrorBoundary'
+import { PreviewNoticeModal } from '@/components/common/PreviewNoticeModal'
+import { ToastProvider } from '@/components/common/ToastProvider'
 import { I18nProvider } from '@/i18n'
 import { useLazyMeQuery } from '@/services/authApi'
 import { store } from '@/store'
@@ -68,11 +72,18 @@ createRoot(document.getElementById('root')!).render(
     <Provider store={store}>
       <ThemeProvider defaultTheme="light">
         <I18nProvider>
-          <BrowserRouter>
-            <AuthBootstrap>
-              <App />
-            </AuthBootstrap>
-          </BrowserRouter>
+          <ToastProvider>
+            <BrowserRouter>
+              <ErrorBoundary>
+                <ApiHealthGate>
+                  <AuthBootstrap>
+                    <PreviewNoticeModal />
+                    <App />
+                  </AuthBootstrap>
+                </ApiHealthGate>
+              </ErrorBoundary>
+            </BrowserRouter>
+          </ToastProvider>
         </I18nProvider>
       </ThemeProvider>
     </Provider>

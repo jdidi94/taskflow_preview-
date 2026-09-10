@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 
-import { baseQuery } from '@/services/apiBase'
+import { baseQuery, rtkQueryDefaults } from '@/services/apiBase'
 import type { ApiSuccess } from '@/types/domain'
 
 export type TemplateItem = {
@@ -56,9 +56,15 @@ export function extractTemplateLists(content: unknown): Array<{ name: string }> 
     ? record.lists
     : Array.isArray(record.columns)
       ? record.columns
-      : []
+      : Array.isArray(record.defaultLists)
+        ? record.defaultLists
+        : []
   return raw
     .map((entry) => {
+      if (typeof entry === 'string') {
+        const name = entry.trim()
+        return name ? { name } : null
+      }
       if (!entry || typeof entry !== 'object') return null
       const list = entry as Record<string, unknown>
       const name = String(list.title ?? list.name ?? '').trim()
@@ -70,6 +76,7 @@ export function extractTemplateLists(content: unknown): Array<{ name: string }> 
 export const templatesApi = createApi({
   reducerPath: 'templatesApi',
   baseQuery,
+  ...rtkQueryDefaults,
   tagTypes: ['Templates'],
   endpoints: (builder) => ({
     listTemplates: builder.query<

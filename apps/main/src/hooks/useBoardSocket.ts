@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { getBoardSocket, pushSocketLog } from '@/lib/socket'
+import { getBoardSocket } from '@/lib/socket'
 import { boardsApi } from '@/services/boardsApi'
 import { tasksApi } from '@/services/tasksApi'
 import { useAppDispatch } from '@/store/hooks'
@@ -100,7 +100,6 @@ export function useBoardSocket(boardId: string | undefined) {
 
     const joinBoard = () => {
       socket.emit('board:join', { boardId })
-      pushSocketLog('/board', 'emit', `board:join ${boardId}`)
     }
 
     const onState = (payload: {
@@ -109,10 +108,6 @@ export function useBoardSocket(boardId: string | undefined) {
       tasks?: Task[]
     }) => {
       if (!active) return
-      pushSocketLog('/board', 'event', 'board:state', {
-        columns: payload.columns?.length ?? payload.board?.columns?.length,
-        tasks: payload.tasks?.length,
-      })
       const columns = (payload.columns ?? payload.board?.columns ?? [])
         .map((column) => normalizeColumn(column))
         .filter(Boolean) as BoardColumn[]
@@ -143,25 +138,20 @@ export function useBoardSocket(boardId: string | undefined) {
     }
 
     const onTaskCreated = (payload: { task?: Task }) => {
-      pushSocketLog('/board', 'event', 'task:created', { id: payload.task?.id })
       if (payload.task) upsertTask(payload.task)
     }
     const onTaskUpdated = (payload: { task?: Task }) => {
-      pushSocketLog('/board', 'event', 'task:updated', { id: payload.task?.id })
       if (payload.task) upsertTask(payload.task)
     }
     const onTaskMoved = (payload: { task?: Task }) => {
-      pushSocketLog('/board', 'event', 'task:moved', { id: payload.task?.id })
       if (payload.task) upsertTask(payload.task)
     }
     const onTaskDeleted = (payload: { taskId?: string; task?: Task }) => {
       const id = payload.taskId ?? payload.task?.id
-      pushSocketLog('/board', 'event', 'task:deleted', { id })
       if (id) removeTask(String(id))
     }
 
     const onColumnCreated = (payload: { column?: BoardColumn }) => {
-      pushSocketLog('/board', 'event', 'column:created', { id: payload.column?.id })
       const column = payload.column ? normalizeColumn(payload.column) : null
       if (!column) return
       dispatch(
@@ -174,7 +164,6 @@ export function useBoardSocket(boardId: string | undefined) {
     }
 
     const onColumnUpdated = (payload: { column?: BoardColumn }) => {
-      pushSocketLog('/board', 'event', 'column:updated', { id: payload.column?.id })
       const column = payload.column ? normalizeColumn(payload.column) : null
       if (!column) return
       dispatch(
@@ -187,7 +176,6 @@ export function useBoardSocket(boardId: string | undefined) {
     }
 
     const onColumnDeleted = (payload: { columnId?: string }) => {
-      pushSocketLog('/board', 'event', 'column:deleted', { id: payload.columnId })
       if (!payload.columnId) return
       dispatch(
         boardsApi.util.updateQueryData('getBoard', boardId, (draft) => {
@@ -199,9 +187,6 @@ export function useBoardSocket(boardId: string | undefined) {
     }
 
     const onColumnsReordered = (payload: { columns?: BoardColumn[] }) => {
-      pushSocketLog('/board', 'event', 'columns:reordered', {
-        count: payload.columns?.length,
-      })
       if (payload.columns) applyColumns(payload.columns)
     }
 
@@ -220,7 +205,6 @@ export function useBoardSocket(boardId: string | undefined) {
     return () => {
       active = false
       socket.emit('board:leave', { boardId })
-      pushSocketLog('/board', 'emit', `board:leave ${boardId}`)
       socket.off('connect', joinBoard)
       socket.off('board:state', onState)
       socket.off('task:created', onTaskCreated)

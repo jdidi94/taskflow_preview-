@@ -2,11 +2,14 @@ import { Router } from 'express'
 
 import * as githubController from '../controllers/github.controller.js'
 import { authenticate } from '../middlewares/auth.js'
-import { validateBody, validateParams } from '../middlewares/validate.js'
+import { validateBody, validateParams, validateQuery } from '../middlewares/validate.js'
 import {
   githubLinkSchema,
   githubOrgParamsSchema,
+  githubPulseQuerySchema,
   githubRepoParamsSchema,
+  githubStatsQuerySchema,
+  githubSyncSchema,
 } from './validator/github.schemas.js'
 
 export const githubRouter = Router()
@@ -35,8 +38,22 @@ githubRouter.get(
   validateParams(githubOrgParamsSchema),
   githubController.getOrganizationMembersWithEmails,
 )
-githubRouter.post('/sync', githubController.syncGitHubData)
+githubRouter.post('/sync', validateBody(githubSyncSchema), githubController.syncGitHubData)
+githubRouter.get(
+  '/stats/overview',
+  validateQuery(githubStatsQuerySchema),
+  githubController.getGitHubStatsOverview,
+)
+githubRouter.get(
+  '/stats/repos',
+  validateQuery(githubStatsQuerySchema),
+  githubController.getGitHubStatsRepos,
+)
+githubRouter.get(
+  '/stats/pulse',
+  validateQuery(githubPulseQuerySchema),
+  githubController.getGitHubStatsPulse,
+)
 githubRouter.delete('/unlink', githubController.unlinkGitHubAccount)
 githubRouter.post('/force-reauth', githubController.forceReAuth)
 githubRouter.get('/status', githubController.getGitHubStatus)
-

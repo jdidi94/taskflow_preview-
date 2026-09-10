@@ -2,15 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { Alert, Button, Input, Modal } from '@taskflow/ui'
 
 import { useI18n } from '@/i18n'
+import { getApiErrorMessage } from '@/lib/apiError'
 import { useCreateWorkspaceMutation } from '@/services/workspacesApi'
-
-function apiErrorMessage(error: unknown, fallback: string) {
-  if (error && typeof error === 'object' && 'data' in error) {
-    const data = (error as { data?: { message?: string } }).data
-    if (data?.message) return data.message
-  }
-  return fallback
-}
 
 type CreateWorkspaceModalProps = {
   open: boolean
@@ -48,7 +41,7 @@ export function CreateWorkspaceModal({ open, onClose, onCreated }: CreateWorkspa
       onClose()
       onCreated?.()
     } catch (err) {
-      setFormError(apiErrorMessage(err, t('dashboard.createError')))
+      setFormError(getApiErrorMessage(err, t('dashboard.createError')))
     }
   }
 

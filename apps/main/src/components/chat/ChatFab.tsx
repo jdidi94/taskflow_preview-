@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { Link, useLocation } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { MessageCircle, X } from 'lucide-react'
 
@@ -18,6 +19,7 @@ import type { ChatMessage } from '@/types/chat'
 
 export function ChatFab() {
   const { t } = useI18n()
+  const location = useLocation()
   const reduceMotion = useReducedMotion()
   const user = useAppSelector((state) => state.auth.user)
   const [open, setOpen] = useState(false)
@@ -80,6 +82,8 @@ export function ChatFab() {
     }
   }
 
+  if (location.pathname === '/chat') return null
+
   return (
     <>
       <motion.button
@@ -124,8 +128,15 @@ export function ChatFab() {
             transition={reduced(softSpring, reduceMotion)}
           >
             <header className="shrink-0 border-b border-border/70 px-3 py-2">
-              <p className="text-sm font-semibold">{t('chat.title')}</p>
-              <p className="text-xs text-muted-foreground">{user?.name ?? t('chat.subtitle')}</p>
+              <p className="text-sm font-semibold">{t('chat.fabTitle')}</p>
+              <p className="text-xs text-muted-foreground">{t('chat.fabHint')}</p>
+              <Link
+                to="/chat"
+                className="mt-1 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+                onClick={() => setOpen(false)}
+              >
+                {t('chat.openFull')}
+              </Link>
             </header>
 
             <ChatMessageList

@@ -2,11 +2,14 @@ import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Alert, Button, Input } from '@taskflow/ui'
-import { X } from 'lucide-react'
+import { Bot, Pencil, X } from 'lucide-react'
 
 import { TaskAttachmentsSection } from '@/components/board/TaskAttachmentsSection'
 import { TaskChecklistField } from '@/components/board/TaskChecklistField'
 import { TaskCommentsSection } from '@/components/board/TaskCommentsSection'
+import { TaskDependenciesSection } from '@/components/board/TaskDependenciesSection'
+import { TaskViewersLine } from '@/components/board/TaskViewersLine'
+import { TaskWatchersSection } from '@/components/board/TaskWatchersSection'
 import {
   TASK_COLORS,
   dueDateFromInput,
@@ -18,6 +21,7 @@ import type { NormalizedWorkspaceMember } from '@/components/workspace/normalize
 import { initials } from '@/components/workspace/normalizeMembers'
 import { useI18n } from '@/i18n'
 import { getApiErrorMessage } from '@/lib/apiError'
+import { getBoardSocket } from '@/lib/socket'
 import { reduced, softSpring } from '@/lib/motion'
 import type { Task, TaskChecklistItem, TaskPriority } from '@/types/domain'
 
@@ -61,6 +65,9 @@ type TaskDetailDrawerProps = {
   onClose: () => void
   onSubmit: (values: TaskDetailValues) => Promise<void>
   onDelete?: () => Promise<void>
+  boardTasks?: Task[]
+  onOpenTask?: (task: Task) => void
+  onOpenAi?: () => void
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
@@ -78,6 +85,9 @@ export function TaskDetailDrawer({
   onClose,
   onSubmit,
   onDelete,
+  boardTasks = [],
+  onOpenTask,
+  onOpenAi,
 }: TaskDetailDrawerProps) {
   const { t, isRTL } = useI18n()
   const isDesktop = useIsDesktop()
@@ -93,8 +103,56 @@ export function TaskDetailDrawer({
   const [checklist, setChecklist] = useState<TaskChecklistItem[]>([])
   const [formError, setFormError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [saveHint, setSaveHint] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [conflict, setConflict] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
+  const onSubmitRef = useRef(onSubmit)
+  const lastSavedKey = useRef('')
+  const baselineUpdatedAt = useRef<string | undefined>(undefined)
+  const ownSavePending = useRef(false)
+  const taskRef = useRef(task)
+  const taskId = task?.id ?? null
+
+  onSubmitRef.current = onSubmit
+  taskRef.current = task
+
+  function currentValues(): TaskDetailValues {
+    return {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      priority,
+      color,
+      assignees,
+      tags,
+      dueDate: dueDateFromInput(dueDate),
+      checklist: checklist.filter((item) => item.text.trim()),
+    }
+  }
+
+  function valuesKey(values: TaskDetailValues) {
+    return JSON.stringify({
+      title: values.title,
+      description: values.description ?? '',
+      priority: values.priority,
+      color: values.color,
+      assignees: [...values.assignees].sort(),
+      tags: values.tags,
+      dueDate: values.dueDate,
+      checklist: values.checklist.map((item) => ({ text: item.text.trim(), done: item.done })),
+    })
+  }
+
+  useEffect(() => {
+    if (!open || mode !== 'edit' || !boardId || !task?.id) {
+      return
+    }
+    const socket = getBoardSocket()
+    socket.emit('presence:update', { boardId, status: 'online', taskId: task.id })
+    return () => {
+      socket.emit('presence:update', { boardId, status: 'online', taskId: null })
+    }
+  }, [boardId, mode, open, task?.id])
 
   useEffect(() => {
     if (!open) return
@@ -109,7 +167,14 @@ export function TaskDetailDrawer({
     setChecklist(normalizeChecklist(task?.checklist))
     setFormError(null)
     setDeleting(false)
-  }, [open, task, mode, defaultDueDate])
+    setSaveHint('idle')
+    setConflict(false)
+    lastSavedKey.current = ''
+    baselineUpdatedAt.current = task?.updatedAt
+    ownSavePending.current = false
+    // task snapshot is read when the drawer target changes, not on cache patches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit task field deps
+  }, [open, taskId, mode, defaultDueDate])
 
   useEffect(() => {
     if (!open) return
@@ -155,22 +220,106 @@ export function TaskDetailDrawer({
     setTagDraft('')
   }
 
+  function applyTaskSnapshot(snapshot: Task | null | undefined) {
+    setTitle(snapshot?.title ?? '')
+    setDescription(snapshot?.description ?? '')
+    setPriority(snapshot?.priority ?? 'medium')
+    setColor(snapshot?.color || TASK_COLORS[0])
+    setAssignees(taskAssigneeIds(snapshot))
+    setTags([...(snapshot?.tags ?? [])])
+    setTagDraft('')
+    setDueDate(dueDateToInput(snapshot?.dueDate) || (mode === 'create' ? defaultDueDate ?? '' : ''))
+    setChecklist(normalizeChecklist(snapshot?.checklist))
+    lastSavedKey.current = valuesKey({
+      title: (snapshot?.title ?? '').trim(),
+      description: snapshot?.description?.trim() || undefined,
+      priority: snapshot?.priority ?? 'medium',
+      color: snapshot?.color || TASK_COLORS[0],
+      assignees: taskAssigneeIds(snapshot),
+      tags: [...(snapshot?.tags ?? [])],
+      dueDate: dueDateFromInput(dueDateToInput(snapshot?.dueDate)),
+      checklist: normalizeChecklist(snapshot?.checklist).filter((item) => item.text.trim()),
+    })
+  }
+
+  async function persist(values = currentValues()) {
+    if (!values.title) return
+    const key = valuesKey(values)
+    setFormError(null)
+    setSaveHint('saving')
+    ownSavePending.current = true
+    try {
+      await onSubmitRef.current(values)
+      lastSavedKey.current = key
+      setSaveHint('saved')
+    } catch (err) {
+      ownSavePending.current = false
+      setSaveHint('error')
+      setFormError(getApiErrorMessage(err, t('board.saveError')))
+      throw err
+    }
+  }
+
+  useEffect(() => {
+    if (!open || mode !== 'edit' || !taskId) return
+    const incoming = task?.updatedAt
+    if (!incoming || incoming === baselineUpdatedAt.current) return
+
+    if (ownSavePending.current) {
+      ownSavePending.current = false
+      baselineUpdatedAt.current = incoming
+      return
+    }
+
+    const currentKey = valuesKey(currentValues())
+    const dirty = Boolean(lastSavedKey.current) && currentKey !== lastSavedKey.current
+    if (!dirty) {
+      applyTaskSnapshot(task)
+      baselineUpdatedAt.current = incoming
+      setConflict(false)
+      return
+    }
+
+    setConflict(true)
+    // Local form state is read on updatedAt changes only — not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, taskId, task?.updatedAt])
+
+  function reloadFromServer() {
+    applyTaskSnapshot(taskRef.current)
+    baselineUpdatedAt.current = taskRef.current?.updatedAt
+    setConflict(false)
+    setFormError(null)
+    setSaveHint('idle')
+  }
+
+  function keepEditing() {
+    baselineUpdatedAt.current = taskRef.current?.updatedAt
+    setConflict(false)
+  }
+
+  useEffect(() => {
+    if (!open || mode !== 'edit' || !taskId) return
+    const values = currentValues()
+    if (!values.title) return
+    const key = valuesKey(values)
+    if (!lastSavedKey.current) {
+      lastSavedKey.current = key
+      return
+    }
+    if (key === lastSavedKey.current) return
+    const handle = window.setTimeout(() => {
+      void persist(values).catch(() => undefined)
+    }, 700)
+    return () => window.clearTimeout(handle)
+  }, [open, mode, taskId, title, description, priority, color, assignees, tags, dueDate, checklist])
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    setFormError(null)
     try {
-      await onSubmit({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        priority,
-        color,
-        assignees,
-        tags,
-        dueDate: dueDateFromInput(dueDate),
-        checklist: checklist.filter((item) => item.text.trim()),
-      })
-    } catch (err) {
-      setFormError(getApiErrorMessage(err, t('board.saveError')))
+      await persist()
+    } catch {
+      /* formError set in persist */
     }
   }
 
@@ -188,7 +337,7 @@ export function TaskDetailDrawer({
 
   if (typeof document === 'undefined') return null
 
-  const busy = Boolean(saving || deleting)
+  const busy = Boolean(deleting || (mode === 'create' && saving))
   const slideFromEnd = isRTL ? '-100%' : '100%'
   const panelMotion = reduceMotion
     ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } }
@@ -237,26 +386,47 @@ export function TaskDetailDrawer({
               <span className="h-1 w-10 rounded-full bg-muted-foreground/35" />
             </div>
 
-            <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-3 md:py-4">
-              <div className="min-w-0">
-                <h2 id="task-detail-title" className="font-display text-lg font-semibold">
-                  {mode === 'edit' ? t('board.editTask') : t('board.createTask')}
-                </h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  {mode === 'edit' ? t('board.editTaskHint') : t('board.createTaskHint')}
-                </p>
+            <header className="flex flex-col gap-2 border-b border-border px-5 py-3 md:py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 id="task-detail-title" className="font-display text-lg font-semibold">
+                    {mode === 'edit' ? t('board.editTask') : t('board.createTask')}
+                  </h2>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {mode === 'edit' ? t('board.editTaskHint') : t('board.createTaskHint')}
+                  </p>
+                  {mode === 'edit' ? <TaskViewersLine boardId={boardId} taskId={task?.id} /> : null}
+                </div>
+                <Button
+                  ref={closeRef}
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 shrink-0 p-0"
+                  onClick={onClose}
+                  aria-label={t('common.close')}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-              <Button
-                ref={closeRef}
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 w-8 shrink-0 p-0"
-                onClick={onClose}
-                aria-label={t('common.close')}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              {onOpenAi ? (
+                <div className="inline-flex rounded-md border border-border/70 p-0.5">
+                  <Button type="button" size="sm" variant="secondary" className="h-8 gap-1.5" disabled>
+                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                    {t('ai.panelToggleEdit')}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1.5"
+                    onClick={onOpenAi}
+                  >
+                    <Bot className="h-3.5 w-3.5" aria-hidden />
+                    {t('ai.panelToggleAi')}
+                  </Button>
+                </div>
+              ) : null}
             </header>
 
             <form
@@ -266,6 +436,22 @@ export function TaskDetailDrawer({
               <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-4">
                 {formError ? (
                   <Alert variant="error" title={t('board.saveError')} description={formError} />
+                ) : null}
+                {conflict ? (
+                  <Alert
+                    variant="warning"
+                    title={t('board.conflictTitle')}
+                    description={t('board.conflictBody')}
+                  >
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="primary" onClick={reloadFromServer}>
+                        {t('board.conflictReload')}
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={keepEditing}>
+                        {t('board.conflictKeep')}
+                      </Button>
+                    </div>
+                  </Alert>
                 ) : null}
 
                 <label className="flex flex-col gap-1.5">
@@ -409,6 +595,19 @@ export function TaskDetailDrawer({
 
                 {mode === 'edit' && task ? (
                   <>
+                    <TaskWatchersSection
+                      task={task}
+                      boardId={boardId}
+                      members={members}
+                      disabled={busy}
+                    />
+                    <TaskDependenciesSection
+                      task={task}
+                      boardId={boardId}
+                      boardTasks={boardTasks}
+                      disabled={busy}
+                      onOpenTask={onOpenTask}
+                    />
                     <TaskAttachmentsSection task={task} boardId={boardId} disabled={busy} />
                     <TaskCommentsSection task={task} boardId={boardId} members={members} />
                   </>
@@ -424,17 +623,32 @@ export function TaskDetailDrawer({
                     disabled={busy}
                     onClick={() => void handleDelete()}
                   >
-                    {deleting ? t('board.deleting') : t('common.delete')}
+                    {deleting ? t('archive.archiving') : t('archive.archive')}
                   </Button>
                 ) : (
                   <span />
                 )}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {mode === 'edit' ? (
+                    <p className="me-auto text-xs text-muted-foreground" aria-live="polite">
+                      {saveHint === 'saving' || saving ? t('board.autosaveSaving') : null}
+                      {saveHint === 'saved' && !saving ? t('board.autosaveSaved') : null}
+                      {saveHint === 'error' ? (
+                        <button
+                          type="button"
+                          className="underline underline-offset-2"
+                          onClick={() => void persist().catch(() => undefined)}
+                        >
+                          {t('board.autosaveRetry')}
+                        </button>
+                      ) : null}
+                    </p>
+                  ) : null}
                   <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
                     {t('common.cancel')}
                   </Button>
                   <Button type="submit" variant="primary" disabled={busy || !title.trim()}>
-                    {saving ? t('board.saving') : t('common.save')}
+                    {saving || saveHint === 'saving' ? t('board.saving') : t('common.save')}
                   </Button>
                 </div>
               </footer>

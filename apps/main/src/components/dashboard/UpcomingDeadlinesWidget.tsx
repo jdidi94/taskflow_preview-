@@ -3,6 +3,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle, Loading } from '@taskf
 import { CalendarClock } from 'lucide-react'
 
 import { useI18n } from '@/i18n'
+import { taskBoardHref } from '@/lib/taskHref'
 import { useListAssignedUpcomingQuery } from '@/services/tasksApi'
 import type { Task } from '@/types/domain'
 
@@ -36,9 +37,17 @@ export function UpcomingDeadlinesWidget() {
   return (
     <Card className="border-border/70">
       <CardHeader>
-        <div className="flex items-center gap-2">
-          <CalendarClock className="h-4 w-4 text-primary" aria-hidden />
-          <CardTitle className="text-base">{t('dashboard.deadlinesTitle')}</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <CalendarClock className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            <CardTitle className="text-base">{t('dashboard.deadlinesTitle')}</CardTitle>
+          </div>
+          <Link
+            to="/my-tasks"
+            className="shrink-0 text-xs font-medium text-primary hover:underline"
+          >
+            {t('myTasks.viewAll')}
+          </Link>
         </div>
         <p className="text-sm text-muted-foreground">{t('dashboard.deadlinesSubtitle')}</p>
       </CardHeader>
@@ -55,7 +64,7 @@ export function UpcomingDeadlinesWidget() {
               return (
                 <li key={task.id}>
                   <Link
-                    to={`/boards/${task.board}`}
+                    to={taskBoardHref(String(task.board), task.id)}
                     className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm transition hover:bg-muted/40"
                   >
                     <div className="min-w-0">

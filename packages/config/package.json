@@ -17,7 +17,8 @@
   "scripts": {
     "build": "echo \"No build step for config\"",
     "type-check": "echo \"No type-check for config\"",
-    "lint": "echo \"No lint configured yet\""
+    "lint": "echo \"Config package OK\"",
+    "test": "echo \"No config tests yet\""
   },
   "devDependencies": {
     "@eslint/js": "^9.27.0",
