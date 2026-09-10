@@ -317,8 +317,8 @@ export const fr: MessageTree = {
   },
   preview: {
     title: 'Version de démonstration',
-    body: 'Ceci est une prévisualisation destinée aux recruteurs — pas un déploiement de production. Les fonctionnalités et les données peuvent être réinitialisées à tout moment.',
-    contactHint: 'Intéressé par le produit ou un recrutement ? Contactez-moi par e-mail.',
+    body: 'Ceci est une prévisualisation de présentation de TaskFlow AI — pas un déploiement de production. Les fonctionnalités et les données peuvent être réinitialisées à tout moment.',
+    contactHint: 'Explorez le produit librement. Cette version est destinée au portfolio et à la présentation uniquement.',
     dismiss: 'Compris',
   },
   invites: {

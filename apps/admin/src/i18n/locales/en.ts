@@ -69,7 +69,7 @@ export const en: MessageTree = {
     passwordHint: 'At least 8 characters with uppercase, lowercase, a number, and a special character (@$!%*?&).',
     rememberMe: 'Remember this device',
     rememberMeHint: 'Session lasts 7 days, or 30 days if you remember this device.',
-    demoHint: 'Local demo: admin@taskflow.demo / Password123!',
+    demoHint: 'Local development build — use your seeded admin account.',
     footer: 'TaskFlow Admin Panel · Secure access',
     showPassword: 'Show password',
     hidePassword: 'Hide password',

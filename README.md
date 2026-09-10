@@ -1,20 +1,37 @@
 # TaskFlow AI
 
-**Preview repository** for recruiters and collaborators. This is a demonstration snapshot of TaskFlow AI — an AI-assisted team task manager with workspaces, boards, realtime collaboration, and an admin console.
+<p align="center">
+  <img src="apps/main/public/logo-full.svg" alt="TaskFlow AI" width="120" height="120" />
+</p>
 
-> Contact: [jdididdaoud1994@gmail.com](mailto:jdididdaoud1994@gmail.com)
+<p align="center">
+  <strong>AI-assisted team task management</strong><br />
+  Workspaces · boards · realtime collaboration · admin console
+</p>
+
+<p align="center">
+  <img src="apps/main/public/logo.svg" alt="TaskFlow mark" height="40" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="apps/admin/public/logo-admin.svg" alt="TaskFlow Admin" height="40" />
+</p>
 
 ---
 
 ## Vision
 
-TaskFlow AI helps product and engineering teams plan work, collaborate in real time, and use AI where it actually helps: drafting boards, summarizing context, and assisting inside spaces — without replacing human judgment.
+TaskFlow AI helps product and engineering teams plan work, collaborate in real time, and use AI where it helps most: drafting boards, summarizing context, and assisting inside spaces — without replacing human judgment.
 
-The product ships as:
+---
 
-- **Main app** — workspaces, spaces, kanban/list/calendar/timeline boards, chat, notifications, templates, billing hooks, GitHub-aware workspace views
-- **Admin panel** — users/staff, templates, AI quotas, analytics, system health, audit activity
-- **Backend API** — Express + MongoDB + Socket.IO, AI provider integrations, auth for users and admins
+## What you can explore
+
+| Surface | Focus |
+| --- | --- |
+| **Main app** | Workspaces, spaces, kanban / list / calendar / timeline boards, chat, notifications, templates, GitHub-aware workspace views |
+| **Admin panel** | Users & staff, templates, AI quotas, analytics, system health, audit activity |
+| **API** | Auth, boards & tasks, Socket.IO realtime, file uploads, AI providers |
+
+Ready-to-apply **templates** ship with the seed (sprint, marketing, hiring, support, sales, ops, and a multi-board launch space).
 
 ---
 
@@ -23,16 +40,16 @@ The product ships as:
 | Layer | Stack |
 | --- | --- |
 | Apps | React 19, Vite, React Router 7, Redux Toolkit / RTK Query, Tailwind 4 |
-| UI | Shared `@taskflow/ui` + `@taskflow/theme` (en / fr / ar, RTL) |
+| UI | Shared `@taskflow/ui` + `@taskflow/theme` · **en / fr / ar** with RTL |
 | API | Node.js 22+, Express, Mongoose, Socket.IO |
-| AI | Provider-resolved clients (e.g. Google / Groq) with quotas |
-| Tooling | npm workspaces, Turbo, TypeScript, Vitest |
+| AI | Provider-resolved clients with quotas |
+| Tooling | npm workspaces, Turbo, TypeScript |
 
 ---
 
-## Quick start (local preview)
+## Local preview
 
-**Requirements:** Node.js `>= 22`, npm `>= 10`, MongoDB `>= 6` (local or Atlas).
+**Requirements:** Node.js `>= 22`, npm `>= 10`, MongoDB `>= 6`.
 
 ```bash
 git clone https://github.com/jdidi94/taskflow_preview-.git
@@ -44,21 +61,11 @@ cp apps/main/.env.example apps/main/.env
 cp apps/admin/.env.example apps/admin/.env
 ```
 
-Edit `apps/backend/.env` and set at least:
-
-- `DATABASE_URL` — MongoDB connection string
-- `JWT_SECRET` / `ENCRYPTION_KEY` — long random strings (not the placeholders)
-
-Seed demo data (refuses to run when `NODE_ENV=production`):
+Configure `DATABASE_URL`, `JWT_SECRET`, and `ENCRYPTION_KEY` in the backend env, then:
 
 ```bash
-npm run seed:reset
-```
-
-Start the API + main app + admin together:
-
-```bash
-npm run dev:web
+npm run seed:reset   # demo data (blocked when NODE_ENV=production)
+npm run dev:web      # API + main + admin
 ```
 
 | Surface | URL |
@@ -67,27 +74,14 @@ npm run dev:web
 | Admin panel | http://localhost:5175 |
 | API health | http://localhost:3001/api/health |
 
-### Demo logins
+---
 
-All seeded accounts use **`Password123!`**
+## Preview note
 
-| App | Email |
-| --- | --- |
-| Main | `jondoe@gmail.com` |
-| Main | `janemaria@gmail.com` |
-| Admin (super_admin) | `admin@taskflow.demo` |
-| Admin | `jondoe@gmail.com` |
-
-Templates in the seed are ready to apply (sprint, marketing, hiring, support, sales, ops, and a multi-board launch space).
+This repository is a **portfolio / presentation** snapshot — not a production deployment. Data and features may reset as the product evolves.
 
 ---
 
-## Preview notice
-
-This repository is a **preview** for portfolio / recruiting conversations. Expect demo data resets, incomplete production hardening, and evolving APIs. For opportunities or questions about the build, email **jdididdaoud1994@gmail.com**.
-
----
-
-## License / status
+## Status
 
 Private preview snapshot. Not an official production release.

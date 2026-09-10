@@ -7,13 +7,8 @@
  *   npm run seed -w @taskflow/backend
  *   npm run seed -w @taskflow/backend -- --reset
  *
- * Login (all seeded users):
- *   jondoe@gmail.com / Password123!
- *   janemaria@gmail.com / Password123!
- *
- * Admin panel (http://localhost:5175/login) — super_admin:
- *   admin@taskflow.demo / Password123!
- *   jondoe@gmail.com / Password123!
+ * Creates demo users, workspaces, boards, and ready-to-apply templates.
+ * Credentials are not printed here — configure accounts via seed script internals for local use only.
  */
 
 import crypto from 'node:crypto'
@@ -669,9 +664,8 @@ async function main() {
     if (existing) {
       await seedAdmin()
       console.log('Demo users already exist. Re-run with --reset to wipe product data and seed again.')
-      console.log('Admin panel: http://localhost:5175/login')
-      console.log(`  ${SUPER_ADMIN_EMAIL} / ${DEMO_PASSWORD}`)
-      console.log(`  jondoe@gmail.com / ${DEMO_PASSWORD}`)
+      console.log('Main app: http://localhost:5173')
+      console.log('Admin:    http://localhost:5175')
       await mongoose.disconnect()
       return
     }
@@ -1005,13 +999,8 @@ async function main() {
   })
 
   console.log('\nSeed complete.\n')
-  console.log('Login at http://localhost:5173/login')
-  console.log(`  ${jon.email}     /  ${DEMO_PASSWORD}`)
-  console.log(`  ${jane.email} /  ${DEMO_PASSWORD}`)
-  console.log(`  (all ${SEED_USERS.length} users share the same password)\n`)
-  console.log('Admin panel at http://localhost:5175/login')
-  console.log(`  ${SUPER_ADMIN_EMAIL} /  ${DEMO_PASSWORD}`)
-  console.log(`  jondoe@gmail.com      /  ${DEMO_PASSWORD}\n`)
+  console.log('Main app:  http://localhost:5173')
+  console.log('Admin:     http://localhost:5175')
   console.log(`Acme Product workspace: /workspaces/${idOf(acme)}`)
   console.log(`Sprint 24 board:        /boards/${idOf(sprint.board)}`)
   console.log(`Pending invite:         /invite/${invite.token}`)

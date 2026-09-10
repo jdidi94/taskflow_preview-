@@ -69,7 +69,7 @@ export const ar: MessageTree = {
     passwordHint: '8 أحرف على الأقل مع حرف كبير وصغير ورقم ورمز خاص (@$!%*?&).',
     rememberMe: 'تذكّر هذا الجهاز',
     rememberMeHint: 'تدوم الجلسة 7 أيام، أو 30 يومًا إذا تذكّرت هذا الجهاز.',
-    demoHint: 'تجريبي محلي: admin@taskflow.demo / Password123!',
+    demoHint: 'نسخة تطوير محلية — استخدم حساب مسؤول من البذرة.',
     footer: 'لوحة إدارة TaskFlow · وصول آمن',
     showPassword: 'إظهار كلمة المرور',
     hidePassword: 'إخفاء كلمة المرور',
